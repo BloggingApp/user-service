@@ -22,6 +22,7 @@ func newUserRepo(db *pgx.Conn) User {
 
 func (r *userRepo) Create(ctx context.Context, user model.User) (*model.User, error) {
 	user.ID = uuid.New()
+	user.Role = "user"
 	user.CreatedAt = time.Now()
 	user.UpdatedAt = time.Now()
 	_, err := r.db.Exec(
@@ -43,7 +44,7 @@ func (r *userRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.User, err
 	var user model.User
 	if err := r.db.QueryRow(ctx, `
 	SELECT
-	u.id, u.email, u.username, u.password_hash, u.display_name, u.bio, u.created_at, u.updated_at
+	u.id, u.email, u.username, u.password_hash, u.display_name, u.bio, u.role, u.created_at, u.updated_at
 	FROM users u
 	WHERE u.id = $1
 	`, id).Scan(
@@ -53,6 +54,7 @@ func (r *userRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.User, err
 		&user.PasswordHash,
 		&user.DisplayName,
 		&user.Bio,
+		&user.Role,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	); err != nil {
@@ -66,7 +68,7 @@ func (r *userRepo) FindByEmail(ctx context.Context, email string) (*model.User, 
 	var user model.User
 	if err := r.db.QueryRow(ctx, `
 	SELECT
-	u.id, u.email, u.username, u.password_hash, u.display_name, u.bio, u.created_at, u.updated_at
+	u.id, u.email, u.username, u.password_hash, u.display_name, u.bio, u.role, u.created_at, u.updated_at
 	FROM users u
 	WHERE u.email = $1
 	`, email).Scan(
@@ -76,6 +78,7 @@ func (r *userRepo) FindByEmail(ctx context.Context, email string) (*model.User, 
 		&user.PasswordHash,
 		&user.DisplayName,
 		&user.Bio,
+		&user.Role,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	); err != nil {
@@ -89,7 +92,7 @@ func (r *userRepo) FindByUsername(ctx context.Context, username string) (*model.
 	var user model.User
 	if err := r.db.QueryRow(ctx, `
 	SELECT
-	u.id, u.email, u.username, u.password_hash, u.display_name, u.bio, u.created_at, u.updated_at
+	u.id, u.email, u.username, u.password_hash, u.display_name, u.bio, u.role, u.created_at, u.updated_at
 	FROM users u
 	WHERE u.username = $1
 	`, username).Scan(
@@ -99,6 +102,31 @@ func (r *userRepo) FindByUsername(ctx context.Context, username string) (*model.
 		&user.PasswordHash,
 		&user.DisplayName,
 		&user.Bio,
+		&user.Role,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	); err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+func (r *userRepo) FindByEmailOrUsername(ctx context.Context, email string, username string) (*model.User, error) {
+	var user model.User
+	if err := r.db.QueryRow(ctx, `
+	SELECT
+	u.id, u.email, u.username, u.password_hash, u.display_name, u.bio, u.role, u.created_at, u.updated_at
+	FROM users u
+	WHERE u.email = $1 OR u.username = $2
+	`, email, username).Scan(
+		&user.ID,
+		&user.Email,
+		&user.Username,
+		&user.PasswordHash,
+		&user.DisplayName,
+		&user.Bio,
+		&user.Role,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	); err != nil {

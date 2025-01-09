@@ -13,8 +13,10 @@ import (
 )
 
 type User interface {
-	GenerateRegistrationCode(ctx context.Context, createUserDto *dto.CreateUserDto) error
+	SendRegistrationCode(ctx context.Context, createUserDto dto.CreateUserDto) error
 	VerifyRegistrationCodeAndCreateUser(ctx context.Context, code int) (*utils.JWTPair, error)
+	SendSignInCode(ctx context.Context, signInDto dto.SignInDto) error
+	VerifySignInCodeAndSignIn(ctx context.Context, code int) (*utils.JWTPair, error)
 	FindByID(ctx context.Context, id uuid.UUID) (*model.User, error)
 }
 

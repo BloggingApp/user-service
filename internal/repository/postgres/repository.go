@@ -13,6 +13,8 @@ type User interface {
 	FindByID(ctx context.Context, id uuid.UUID) (*model.User, error)
 	FindByEmail(ctx context.Context, email string) (*model.User, error)
 	FindByUsername(ctx context.Context, username string) (*model.User, error)
+	FindByEmailOrUsername(ctx context.Context, email string, username string) (*model.User, error)
+	UpdateByID(ctx context.Context, id uuid.UUID, updates map[string]interface{}) error
 }
 
 type PostgresRepository struct {

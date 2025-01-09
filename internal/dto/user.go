@@ -25,12 +25,13 @@ type GetUserDto struct {
 	Username     string              `json:"username"`
 	DisplayName  *string             `json:"display_name"`
 	Bio          *string             `json:"bio"`
+	Role         string              `json:"role"`
 	CreatedAt    time.Time           `json:"created_at"`
 	UpdatedAt    time.Time           `json:"updated_at"`
 	SocialLinks  []*model.SocialLink `json:"social_links"`
 }
 
-type RabbitMQNotificateUserAuthCode struct {
+type RabbitMQNotificateUserCodeDto struct {
 	Email string `json:"email"`
 	Code  int    `json:"code"`
 }
