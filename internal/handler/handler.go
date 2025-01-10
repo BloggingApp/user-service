@@ -46,7 +46,7 @@ func (h *Handler) InitRoutes() *gin.Engine {
 		users := v1.Group("/users")
 		{
 			users.GET("/@me", h.authMiddleware, h.usersMe)
-			users.GET("/f/:username", h.authMiddleware, h.usernameMiddleware, h.usersGetByUsername)
+			users.GET("/byUsername/:username", h.authMiddleware, h.usernameMiddleware, h.usersGetByUsername)
 		}
 	}
 
