@@ -41,29 +41,97 @@ func (r *userRepo) Create(ctx context.Context, user model.User) (*model.User, er
 	return &user, err
 }
 
-func (r *userRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.User, error) {
-	var user model.User
-	if err := r.db.QueryRow(ctx, `
-	SELECT u.id, u.email, u.username, u.password_hash, u.display_name, u.avatar_hash, u.bio, u.role, u.subscribers, u.created_at, u.updated_at
-	FROM users u
-	WHERE u.id = $1
-	`, id).Scan(
-		&user.ID,
-		&user.Email,
-		&user.Username,
-		&user.PasswordHash,
-		&user.DisplayName,
-		&user.AvatarHash,
-		&user.Bio,
-		&user.Role,
-		&user.Subscribers,
-		&user.CreatedAt,
-		&user.UpdatedAt,
-	); err != nil {
+func (r *userRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.FullUser, error) {
+	rows, err := r.db.Query(
+		ctx,
+		`
+		SELECT u.id, u.email, u.username, u.password_hash, u.display_name, u.avatar_hash, u.bio, u.role, u.subscribers, u.created_at, u.updated_at
+		FROM users u
+		JOIN social_links sl ON u.id = sl.user_id
+		WHERE u.id = $1
+		`,
+		id,
+	)
+	if err != nil {
 		return nil, err
 	}
 
-	return &user, nil
+	userMap := make(map[uuid.UUID]*model.FullUser)
+	for rows.Next() {
+		var (
+			userID uuid.UUID
+			userEmail string
+			userUsername string
+			userDisplayName *string
+			userAvatarHash *string
+			userBio *string
+			userRole string
+			userSubscribers int64
+			userCreatedAt time.Time
+			userUpdatedAt time.Time
+			socialLinkUserID *uuid.UUID
+			socialLinkPlatform *string
+			socialLinkUrl *string
+		)
+		if err := rows.Scan(
+			&userID,
+			&userEmail,
+			&userUsername,
+			&userDisplayName,
+			&userAvatarHash,
+			&userBio,
+			&userRole,
+			&userSubscribers,
+			&userCreatedAt,
+			&userUpdatedAt,
+			&socialLinkUserID,
+			&socialLinkPlatform,
+			&socialLinkUrl,
+		); err != nil {
+			return nil, err
+		}
+
+		user, exists := userMap[userID]
+		if !exists {
+			user = &model.FullUser{
+				ID: userID,
+                Email: userEmail,
+                Username: userUsername,
+                DisplayName: userDisplayName,
+                AvatarHash: userAvatarHash,
+                Bio: userBio,
+                Role: userRole,
+				Subscribers: userSubscribers,
+                CreatedAt: userCreatedAt,
+                UpdatedAt: userUpdatedAt,
+                SocialLinks: []*model.SocialLink{},
+			}
+			userMap[userID] = user
+		}
+
+		if socialLinkUserID != nil && socialLinkPlatform != nil && socialLinkUrl != nil {
+			user.SocialLinks = append(user.SocialLinks, &model.SocialLink{
+				UserID: *socialLinkUserID,
+				Platform: *socialLinkPlatform,
+				Url: *socialLinkUrl,
+			})
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	var users []*model.FullUser
+	for _, user := range userMap {
+		users = append(users, user)
+	}
+
+	if len(users) == 0 {
+		return nil, pgx.ErrNoRows
+	}
+
+	return users[0], nil
 }
 
 func (r *userRepo) FindByEmail(ctx context.Context, email string) (*model.User, error) {

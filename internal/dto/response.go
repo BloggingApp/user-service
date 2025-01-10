@@ -21,3 +21,8 @@ type AuthResponse struct {
 	AccessToken string         `json:"access_token"`
 	User        GetUserDto     `json:"user"`
 }
+
+type RefreshResponse struct {
+	Ok          bool           `json:"ok"`
+	AccessToken string         `json:"access_token"`
+}

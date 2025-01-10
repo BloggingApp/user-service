@@ -137,7 +137,7 @@ func (s *userService) VerifyRegistrationCodeAndCreateUser(ctx context.Context, c
 		return nil, nil, ErrInternal
 	}
 
-	return dto.GetUserDtoFromFullUser(*user), jwtPair, nil
+	return user, jwtPair, nil
 }
 
 func (s *userService) SendSignInCode(ctx context.Context, signInDto dto.SignInDto) error {
@@ -232,11 +232,11 @@ func (s *userService) VerifySignInCodeAndSignIn(ctx context.Context, code int) (
 		return nil, nil, err
 	}
 
-	return dto.GetUserDtoFromFullUser(*user), jwtPair, nil
+	return user, jwtPair, nil
 }
 
-func (s *userService) FindByID(ctx context.Context, id uuid.UUID) (*model.User, error) {
-	userCache, err := redisrepo.Get[model.User](s.repo.Redis.Default, ctx, redisrepo.UserKey(id.String()))
+func (s *userService) FindByID(ctx context.Context, id uuid.UUID) (*model.FullUser, error) {
+	userCache, err := redisrepo.Get[model.FullUser](s.repo.Redis.Default, ctx, redisrepo.UserKey(id.String()))
 	if err == nil {
 		s.logger.Info("HELLO USER FROM REDIS")
 		return userCache, nil
@@ -266,8 +266,8 @@ func (s *userService) FindByID(ctx context.Context, id uuid.UUID) (*model.User, 
 	return user, nil
 }
 
-func (s *userService) FindByUsername(ctx context.Context, username string) (*model.FullUser, error) {
-	userCache, err := redisrepo.Get[model.FullUser](s.repo.Redis.Default, ctx, redisrepo.UserByUsernameKey(username))
+func (s *userService) FindByUsername(ctx context.Context, username string) (*dto.GetUserDto, error) {
+	userCache, err := redisrepo.Get[dto.GetUserDto](s.repo.Redis.Default, ctx, redisrepo.UserByUsernameKey(username))
 	if err == nil {
 		return userCache, nil
 	}
@@ -282,13 +282,15 @@ func (s *userService) FindByUsername(ctx context.Context, username string) (*mod
 		s.logger.Sugar().Errorf("failed to get user from postgres: %s", err.Error())
 		return nil, ErrInternal
 	}
+	
+	userDto := dto.GetUserDtoFromFullUser(*user)
 
-	if err := s.repo.Redis.Default.SetJSON(ctx, redisrepo.UserByUsernameKey(username), user, time.Hour * 3); err != nil {
+	if err := s.repo.Redis.Default.SetJSON(ctx, redisrepo.UserByUsernameKey(username), userDto, time.Hour * 3); err != nil {
 		s.logger.Sugar().Errorf("failed to set user in redis: %s", err.Error())
 		return nil, ErrInternal
 	}
 
-	return user, nil
+	return userDto, nil
 }
 
 func (s *userService) SearchByUsername(ctx context.Context, username string, limit int, offset int) ([]*dto.GetUserDto, error) {
@@ -327,17 +329,7 @@ func (s *userService) SearchByUsername(ctx context.Context, username string, lim
 func (s *userService) convertFullUsersToGetUserDtos(users []*model.FullUser) []*dto.GetUserDto {
 	dtos := make([]*dto.GetUserDto, len(users))
 	for i, user := range users {
-		dtos[i] = &dto.GetUserDto{
-			ID:          user.ID,
-			Username:    user.Username,
-			DisplayName: user.DisplayName,
-			AvatarHash:  user.AvatarHash,
-			Bio:         user.Bio,
-			Role:        user.Role,
-			CreatedAt:   user.CreatedAt,
-			UpdatedAt:   user.UpdatedAt,
-			SocialLinks: user.SocialLinks,
-		}
+		dtos[i] = dto.GetUserDtoFromFullUser(*user)
 	}
 	return dtos	
 }
