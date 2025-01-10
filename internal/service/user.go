@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/BloggingApp/user-service/internal/dto"
@@ -43,6 +44,9 @@ func newUserService(logger *zap.Logger, repo *repository.Repository, rabbitmq *r
 }
 
 func (s *userService) SendRegistrationCode(ctx context.Context, createUserDto dto.CreateUserDto) error {
+	createUserDto.Email = strings.TrimSpace(createUserDto.Email)
+	createUserDto.Username = strings.TrimSpace(strings.ToLower(createUserDto.Username))
+
 	// Trying to generate unique registration code
 	code := 0
 	maxAttempts := 10
@@ -85,14 +89,19 @@ func (s *userService) SendRegistrationCode(ctx context.Context, createUserDto dt
 
 func (s *userService) VerifyRegistrationCodeAndCreateUser(ctx context.Context, code int) (*dto.GetUserDto, *utils.JWTPair, error) {
 	// Verifying if code exists
-	key := redisrepo.TempRegistrationCodeKey(code)
-	userData, err := redisrepo.Get[dto.CreateUserDto](s.repo.Redis.Default, ctx, key)
+	redisKey := redisrepo.TempRegistrationCodeKey(code)
+	userData, err := redisrepo.Get[dto.CreateUserDto](s.repo.Redis.Default, ctx, redisKey)
 	if err != nil {
 		if err == redis.Nil {
 			return nil, nil, ErrInvalidCode
 		}
 
-		s.logger.Sugar().Errorf("failed to get value with key(%s) from redis: %s", key, err.Error())
+		s.logger.Sugar().Errorf("failed to get value with key(%s) from redis: %s", redisKey, err.Error())
+		return nil, nil, ErrInternal
+	}
+
+	if err := s.repo.Redis.Default.Del(ctx, redisKey).Err(); err != nil {
+		s.logger.Sugar().Errorf("failed to delete value with key(%s) from redis: %s", redisKey, err.Error())
 		return nil, nil, ErrInternal
 	}
 
@@ -119,13 +128,13 @@ func (s *userService) VerifyRegistrationCodeAndCreateUser(ctx context.Context, c
 		AccessClaims: jwt.MapClaims{
 			"id": createdUser.ID.String(),
 			"role": createdUser.Role,
-			"exp": time.Hour * 3,
 		},
+		AccessExpiry: ACCESS_TOKEN_EXPIRY,
 		RefreshSecret: []byte(os.Getenv("REFRESH_SECRET")),
 		RefreshClaims: jwt.MapClaims{
 			"id": createdUser.ID.String(),
-			"exp": time.Hour * 24 * 7 * 2,
 		},
+		RefreshExpiry: REFRESH_TOKEN_EXPIRY,
 	})
 	if err != nil {
 		s.logger.Sugar().Fatalf("failed to generate jwt pair: %s", err.Error())
@@ -141,13 +150,15 @@ func (s *userService) VerifyRegistrationCodeAndCreateUser(ctx context.Context, c
 }
 
 func (s *userService) SendSignInCode(ctx context.Context, signInDto dto.SignInDto) error {
-	user, err := s.repo.Postgres.User.FindByEmailOrUsername(ctx, *signInDto.Email, *signInDto.Username)
+	signInDto.EmailOrUsername = strings.ToLower(signInDto.EmailOrUsername)
+
+	user, err := s.repo.Postgres.User.FindByEmailOrUsername(ctx, signInDto.EmailOrUsername, signInDto.EmailOrUsername)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return ErrInvalidCredentials
 		}
 
-		s.logger.Sugar().Errorf("failed to get user(email: %s or username: %s) from postgres: %s", *signInDto.Email, *signInDto.Username, err.Error())
+		s.logger.Sugar().Errorf("failed to get user(email: %s or username: %s) from postgres: %s", signInDto.EmailOrUsername, signInDto.EmailOrUsername, err.Error())
 		return ErrInternal
 	}
 
@@ -197,14 +208,19 @@ func (s *userService) SendSignInCode(ctx context.Context, signInDto dto.SignInDt
 
 func (s *userService) VerifySignInCodeAndSignIn(ctx context.Context, code int) (*dto.GetUserDto, *utils.JWTPair, error) {
 	// Verifying if code exists
-	key := redisrepo.TempSignInCodeKey(code)
-	userData, err := redisrepo.Get[model.User](s.repo.Redis.Default, ctx, key)
+	redisKey := redisrepo.TempSignInCodeKey(code)
+	userData, err := redisrepo.Get[model.User](s.repo.Redis.Default, ctx, redisKey)
 	if err != nil {
 		if err == redis.Nil {
 			return nil, nil, ErrInvalidCode
 		}
 
-		s.logger.Sugar().Errorf("failed to get value with key(%s) from redis: %s", key, err.Error())
+		s.logger.Sugar().Errorf("failed to get value with key(%s) from redis: %s", redisKey, err.Error())
+		return nil, nil, ErrInternal
+	}
+
+	if err := s.repo.Redis.Default.Del(ctx, redisKey).Err(); err != nil {
+		s.logger.Sugar().Errorf("failed to delete value with key(%s) from redis: %s", redisKey, err.Error())
 		return nil, nil, ErrInternal
 	}
 
@@ -214,13 +230,13 @@ func (s *userService) VerifySignInCodeAndSignIn(ctx context.Context, code int) (
 		AccessClaims: jwt.MapClaims{
 			"id": userData.ID.String(),
 			"role": userData.Role,
-			"exp": time.Hour * 3,
 		},
+		AccessExpiry: ACCESS_TOKEN_EXPIRY,
 		RefreshSecret: []byte(os.Getenv("REFRESH_SECRET")),
 		RefreshClaims: jwt.MapClaims{
 			"id": userData.ID.String(),
-			"exp": time.Hour * 24 * 7 * 2,
 		},
+		RefreshExpiry: REFRESH_TOKEN_EXPIRY,
 	})
 	if err != nil {
 		s.logger.Sugar().Fatalf("failed to generate jwt pair: %s", err.Error())
@@ -238,7 +254,6 @@ func (s *userService) VerifySignInCodeAndSignIn(ctx context.Context, code int) (
 func (s *userService) FindByID(ctx context.Context, id uuid.UUID) (*model.FullUser, error) {
 	userCache, err := redisrepo.Get[model.FullUser](s.repo.Redis.Default, ctx, redisrepo.UserKey(id.String()))
 	if err == nil {
-		s.logger.Info("HELLO USER FROM REDIS")
 		return userCache, nil
 	}
 
@@ -262,7 +277,6 @@ func (s *userService) FindByID(ctx context.Context, id uuid.UUID) (*model.FullUs
 		return nil, ErrInternal
 	}
 
-	s.logger.Info("HELLO USER FROM POSTGRES")
 	return user, nil
 }
 
@@ -345,7 +359,7 @@ func (s *userService) RefreshTokens(ctx context.Context, refreshToken string) (*
 		return nil, ErrUnauthorized
 	}
 
-	userID, err := uuid.FromBytes([]byte(id))
+	userID, err := uuid.ParseBytes([]byte(id))
 	if err != nil {
 		return nil, ErrUnauthorized
 	}
@@ -357,12 +371,14 @@ func (s *userService) RefreshTokens(ctx context.Context, refreshToken string) (*
 
 	jwtPair, err := utils.GenerateJWTPair(utils.GenerateJWTPairDto{
 		Method: jwt.SigningMethodHS256,
+		AccessExpiry: ACCESS_TOKEN_EXPIRY,
 		AccessSecret: []byte(os.Getenv("ACCESS_SECRET")),
 		AccessClaims: jwt.MapClaims{
 			"id": user.ID.String(),
 			"role": user.Role,
 			"exp": time.Hour * 3,
 		},
+		RefreshExpiry: REFRESH_TOKEN_EXPIRY,
 		RefreshSecret: []byte(os.Getenv("REFRESH_SECRET")),
 		RefreshClaims: jwt.MapClaims{
 			"id": user.ID.String(),

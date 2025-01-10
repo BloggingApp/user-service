@@ -7,7 +7,6 @@ type CreateUserDto struct {
 }
 
 type SignInDto struct {
-	Username *string `json:"username" binding:"min=3,max=20"`
-	Email    *string `json:"email" binding:"email"`
-	Password string  `json:"password" binding:"required,min=3,max=48"`
+	EmailOrUsername string `json:"email_or_username" binding:"required"`
+	Password        string `json:"password" binding:"required,min=3,max=48"`
 }

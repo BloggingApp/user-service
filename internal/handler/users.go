@@ -10,7 +10,7 @@ import (
 func (h *Handler) usersMe(c *gin.Context) {
 	user := h.getUser(c)
 
-	c.JSON(http.StatusFound, dto.GetUserDtoFromFullUser(*user))
+	c.JSON(http.StatusOK, dto.GetUserDtoFromFullUser(*user))
 }
 
 func (h *Handler) usersGetByUsername(c *gin.Context) {
@@ -18,9 +18,9 @@ func (h *Handler) usersGetByUsername(c *gin.Context) {
 
 	user, err := h.services.User.FindByUsername(c.Request.Context(), username)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, dto.NewBasicResponse(false, err))
+		c.JSON(http.StatusInternalServerError, dto.NewBasicResponse(false, err.Error()))
 		return
 	}
 
-	c.JSON(http.StatusFound, user)
+	c.JSON(http.StatusOK, user)
 }

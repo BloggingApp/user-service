@@ -4,14 +4,14 @@ import "time"
 
 type BasicResponse struct {
 	Ok        bool      `json:"ok"`
-	Error     error     `json:"error"`
+	Details   string    `json:"details"`
 	Timestamp time.Time `json:"timestamp"`
 }
 
-func NewBasicResponse(ok bool, err error) BasicResponse {
+func NewBasicResponse(ok bool, details string) BasicResponse {
 	return BasicResponse{
 		Ok: ok,
-		Error: err,
+		Details: details,
 		Timestamp: time.Now(),
 	}
 }

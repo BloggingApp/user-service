@@ -28,7 +28,7 @@ func (r *userRepo) Create(ctx context.Context, user model.User) (*model.User, er
 	user.UpdatedAt = time.Now()
 	_, err := r.db.Exec(
 		ctx,
-		"INSERT INTO users(id, email, username, password_hash, display_name, bio, created_at, updated_at) VALUES($1, $2, $3, $4, $5, $6, $7)",
+		"INSERT INTO users(id, email, username, password_hash, display_name, bio, created_at, updated_at) VALUES($1, $2, $3, $4, $5, $6, $7, $8)",
 		user.ID,
 		user.Email,
 		user.Username,
@@ -45,9 +45,10 @@ func (r *userRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.FullUser,
 	rows, err := r.db.Query(
 		ctx,
 		`
-		SELECT u.id, u.email, u.username, u.password_hash, u.display_name, u.avatar_hash, u.bio, u.role, u.subscribers, u.created_at, u.updated_at
+		SELECT
+		u.id, u.email, u.username, u.password_hash, u.display_name, u.avatar_hash, u.bio, u.role, u.subscribers, u.created_at, u.updated_at, sl.platform, sl.url
 		FROM users u
-		JOIN social_links sl ON u.id = sl.user_id
+		LEFT JOIN social_links sl ON u.id = sl.user_id
 		WHERE u.id = $1
 		`,
 		id,
@@ -55,6 +56,7 @@ func (r *userRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.FullUser,
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
 	userMap := make(map[uuid.UUID]*model.FullUser)
 	for rows.Next() {
@@ -62,6 +64,7 @@ func (r *userRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.FullUser,
 			userID uuid.UUID
 			userEmail string
 			userUsername string
+			userPasswordHash string
 			userDisplayName *string
 			userAvatarHash *string
 			userBio *string
@@ -69,7 +72,6 @@ func (r *userRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.FullUser,
 			userSubscribers int64
 			userCreatedAt time.Time
 			userUpdatedAt time.Time
-			socialLinkUserID *uuid.UUID
 			socialLinkPlatform *string
 			socialLinkUrl *string
 		)
@@ -77,6 +79,7 @@ func (r *userRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.FullUser,
 			&userID,
 			&userEmail,
 			&userUsername,
+			&userPasswordHash,
 			&userDisplayName,
 			&userAvatarHash,
 			&userBio,
@@ -84,7 +87,6 @@ func (r *userRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.FullUser,
 			&userSubscribers,
 			&userCreatedAt,
 			&userUpdatedAt,
-			&socialLinkUserID,
 			&socialLinkPlatform,
 			&socialLinkUrl,
 		); err != nil {
@@ -97,6 +99,7 @@ func (r *userRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.FullUser,
 				ID: userID,
                 Email: userEmail,
                 Username: userUsername,
+				PasswordHash: userPasswordHash,
                 DisplayName: userDisplayName,
                 AvatarHash: userAvatarHash,
                 Bio: userBio,
@@ -109,9 +112,9 @@ func (r *userRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.FullUser,
 			userMap[userID] = user
 		}
 
-		if socialLinkUserID != nil && socialLinkPlatform != nil && socialLinkUrl != nil {
+		if socialLinkPlatform != nil && socialLinkUrl != nil {
 			user.SocialLinks = append(user.SocialLinks, &model.SocialLink{
-				UserID: *socialLinkUserID,
+				UserID: userID,
 				Platform: *socialLinkPlatform,
 				Url: *socialLinkUrl,
 			})
@@ -163,9 +166,10 @@ func (r *userRepo) FindByUsername(ctx context.Context, username string) (*model.
 	rows, err := r.db.Query(
 		ctx,
 		`
-		SELECT u.id, u.email, u.username, u.password_hash, u.display_name, u.avatar_hash, u.bio, u.role, u.subscribers, u.created_at, u.updated_at
+		SELECT
+		u.id, u.email, u.username, u.display_name, u.avatar_hash, u.bio, u.role, u.subscribers, u.created_at, u.updated_at, sl.platform, sl.url
 		FROM users u
-		JOIN social_links sl ON u.id = sl.user_id
+		LEFT JOIN social_links sl ON u.id = sl.user_id
 		WHERE u.username = $1
 		`,
 		username,
@@ -173,6 +177,7 @@ func (r *userRepo) FindByUsername(ctx context.Context, username string) (*model.
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
 	userMap := make(map[uuid.UUID]*model.FullUser)
 	for rows.Next() {
@@ -187,7 +192,6 @@ func (r *userRepo) FindByUsername(ctx context.Context, username string) (*model.
 			userSubscribers int64
 			userCreatedAt time.Time
 			userUpdatedAt time.Time
-			socialLinkUserID *uuid.UUID
 			socialLinkPlatform *string
 			socialLinkUrl *string
 		)
@@ -202,7 +206,6 @@ func (r *userRepo) FindByUsername(ctx context.Context, username string) (*model.
 			&userSubscribers,
 			&userCreatedAt,
 			&userUpdatedAt,
-			&socialLinkUserID,
 			&socialLinkPlatform,
 			&socialLinkUrl,
 		); err != nil {
@@ -227,9 +230,9 @@ func (r *userRepo) FindByUsername(ctx context.Context, username string) (*model.
 			userMap[userID] = user
 		}
 
-		if socialLinkUserID != nil && socialLinkPlatform != nil && socialLinkUrl != nil {
+		if socialLinkPlatform != nil && socialLinkUrl != nil {
 			user.SocialLinks = append(user.SocialLinks, &model.SocialLink{
-				UserID: *socialLinkUserID,
+				UserID: userID,
 				Platform: *socialLinkPlatform,
 				Url: *socialLinkUrl,
 			})
@@ -309,9 +312,10 @@ func (r *userRepo) SearchByUsername(ctx context.Context, username string, limit 
 	rows, err := r.db.Query(
 		ctx,
 		`
-		SELECT u.id, u.email, u.username, u.display_name, u.avatar_hash, u.bio, u.role, u.subscribers, u.created_at, u.updated_at
+		SELECT
+		u.id, u.email, u.username, u.display_name, u.avatar_hash, u.bio, u.role, u.subscribers, u.created_at, u.updated_at, sl.platform, sl.url
 		FROM users u
-		JOIN social_links sl ON u.id = sl.user_id
+		LEFT JOIN social_links sl ON u.id = sl.user_id
 		WHERE u.username LIKE %$1%
 		LIMIT $2
 		OFFSET $3
@@ -323,6 +327,7 @@ func (r *userRepo) SearchByUsername(ctx context.Context, username string, limit 
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
 	userMap := make(map[uuid.UUID]*model.FullUser)
 	for rows.Next() {
@@ -337,7 +342,6 @@ func (r *userRepo) SearchByUsername(ctx context.Context, username string, limit 
 			userSubscribers int64
 			userCreatedAt time.Time
 			userUpdatedAt time.Time
-			socialLinkUserID *uuid.UUID
 			socialLinkPlatform *string
 			socialLinkUrl *string
 		)
@@ -352,7 +356,6 @@ func (r *userRepo) SearchByUsername(ctx context.Context, username string, limit 
 			&userSubscribers,
 			&userCreatedAt,
 			&userUpdatedAt,
-			&socialLinkUserID,
 			&socialLinkPlatform,
 			&socialLinkUrl,
 		); err != nil {
@@ -377,9 +380,9 @@ func (r *userRepo) SearchByUsername(ctx context.Context, username string, limit 
 			userMap[userID] = user
 		}
 
-		if socialLinkUserID != nil && socialLinkPlatform != nil && socialLinkUrl != nil {
+		if socialLinkPlatform != nil && socialLinkUrl != nil {
 			user.SocialLinks = append(user.SocialLinks, &model.SocialLink{
-				UserID: *socialLinkUserID,
+				UserID: user.ID,
 				Platform: *socialLinkPlatform,
 				Url: *socialLinkUrl,
 			})
