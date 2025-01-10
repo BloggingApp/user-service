@@ -1,10 +1,16 @@
 package utils
 
-import "github.com/golang-jwt/jwt/v5"
+import (
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+)
 
 type JWTPair struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
+	AccessToken     string    `json:"access_token"`
+	AccessTokenExp  time.Time `json:"access_token_exp"`
+	RefreshToken    string    `json:"refresh_token"`
+	RefreshTokenExp time.Time `json:"refresh_token_exp"`
 }
 
 type GenerateJWTPairDto struct {
@@ -28,9 +34,21 @@ func GenerateJWTPair(dto GenerateJWTPairDto) (*JWTPair, error) {
 		return nil, err
 	}
 
+	accessTokenExp, err := accessToken.Claims.GetExpirationTime()
+	if err != nil {
+		return nil, err
+	}
+
+	refreshTokenExp, err := refreshToken.Claims.GetExpirationTime()
+	if err != nil {
+		return nil, err
+	}
+
 	return &JWTPair{
-		AccessToken:  accessTokenString,
+		AccessToken: accessTokenString,
+		AccessTokenExp: accessTokenExp.Time,
 		RefreshToken: refreshTokenString,
+		RefreshTokenExp: refreshTokenExp.Time,
 	}, nil
 }
 

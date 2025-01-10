@@ -83,34 +83,34 @@ func (s *userService) SendRegistrationCode(ctx context.Context, createUserDto dt
 	return nil
 }
 
-func (s *userService) VerifyRegistrationCodeAndCreateUser(ctx context.Context, code int) (*utils.JWTPair, error) {
+func (s *userService) VerifyRegistrationCodeAndCreateUser(ctx context.Context, code int) (*dto.GetUserDto, *utils.JWTPair, error) {
 	// Verifying if code exists
 	key := redisrepo.TempRegistrationCodeKey(code)
 	userData, err := redisrepo.Get[dto.CreateUserDto](s.repo.Redis.Default, ctx, key)
 	if err != nil {
 		if err == redis.Nil {
-			return nil, ErrInvalidCode
+			return nil, nil, ErrInvalidCode
 		}
 
 		s.logger.Sugar().Errorf("failed to get value with key(%s) from redis: %s", key, err.Error())
-		return nil, ErrInternal
+		return nil, nil, ErrInternal
 	}
 
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(userData.Password), 10)
 	if err != nil {
 		s.logger.Sugar().Errorf("failed to generate password hash: %s", err.Error())
-		return nil, ErrInternal
+		return nil, nil, ErrInternal
 	}
 
-	user := model.User{
+	newUser := model.User{
 		Email: userData.Email,
 		Username: userData.Username,
 		PasswordHash: string(passwordHash),
 	}
-	createdUser, err := s.repo.Postgres.User.Create(ctx, user)
+	createdUser, err := s.repo.Postgres.User.Create(ctx, newUser)
 	if err != nil {
 		s.logger.Sugar().Errorf("failed to create user in postgres: %s", err.Error())
-		return nil, ErrInternal
+		return nil, nil, ErrInternal
 	}
 
 	jwtPair, err := utils.GenerateJWTPair(utils.GenerateJWTPairDto{
@@ -129,10 +129,15 @@ func (s *userService) VerifyRegistrationCodeAndCreateUser(ctx context.Context, c
 	})
 	if err != nil {
 		s.logger.Sugar().Fatalf("failed to generate jwt pair: %s", err.Error())
-		return nil, ErrInternal
+		return nil, nil, ErrInternal
 	}
 
-	return jwtPair, nil
+	user, err := s.FindByUsername(ctx, createdUser.Username)
+	if err != nil {
+		return nil, nil, ErrInternal
+	}
+
+	return dto.GetUserDtoFromFullUser(*user), jwtPair, nil
 }
 
 func (s *userService) SendSignInCode(ctx context.Context, signInDto dto.SignInDto) error {
@@ -190,17 +195,17 @@ func (s *userService) SendSignInCode(ctx context.Context, signInDto dto.SignInDt
 	return nil
 }
 
-func (s *userService) VerifySignInCodeAndSignIn(ctx context.Context, code int) (*utils.JWTPair, error) {
+func (s *userService) VerifySignInCodeAndSignIn(ctx context.Context, code int) (*dto.GetUserDto, *utils.JWTPair, error) {
 	// Verifying if code exists
 	key := redisrepo.TempSignInCodeKey(code)
 	userData, err := redisrepo.Get[model.User](s.repo.Redis.Default, ctx, key)
 	if err != nil {
 		if err == redis.Nil {
-			return nil, ErrInvalidCode
+			return nil, nil, ErrInvalidCode
 		}
 
 		s.logger.Sugar().Errorf("failed to get value with key(%s) from redis: %s", key, err.Error())
-		return nil, ErrInternal
+		return nil, nil, ErrInternal
 	}
 
 	jwtPair, err := utils.GenerateJWTPair(utils.GenerateJWTPairDto{
@@ -219,10 +224,15 @@ func (s *userService) VerifySignInCodeAndSignIn(ctx context.Context, code int) (
 	})
 	if err != nil {
 		s.logger.Sugar().Fatalf("failed to generate jwt pair: %s", err.Error())
-		return nil, ErrInternal
+		return nil, nil, ErrInternal
 	}
 
-	return jwtPair, nil
+	user, err := s.FindByUsername(ctx, userData.Username)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return dto.GetUserDtoFromFullUser(*user), jwtPair, nil
 }
 
 func (s *userService) FindByID(ctx context.Context, id uuid.UUID) (*model.User, error) {
@@ -253,6 +263,31 @@ func (s *userService) FindByID(ctx context.Context, id uuid.UUID) (*model.User, 
 	}
 
 	s.logger.Info("HELLO USER FROM POSTGRES")
+	return user, nil
+}
+
+func (s *userService) FindByUsername(ctx context.Context, username string) (*model.FullUser, error) {
+	userCache, err := redisrepo.Get[model.FullUser](s.repo.Redis.Default, ctx, redisrepo.UserByUsernameKey(username))
+	if err == nil {
+		return userCache, nil
+	}
+
+	if err != redis.Nil {
+		s.logger.Sugar().Errorf("failed to get user from redis: %s", err.Error())
+		return nil, ErrInternal
+	}
+
+	user, err := s.repo.Postgres.User.FindByUsername(ctx, username)
+	if err != nil {
+		s.logger.Sugar().Errorf("failed to get user from postgres: %s", err.Error())
+		return nil, ErrInternal
+	}
+
+	if err := s.repo.Redis.Default.SetJSON(ctx, redisrepo.UserByUsernameKey(username), user, time.Hour * 3); err != nil {
+		s.logger.Sugar().Errorf("failed to set user in redis: %s", err.Error())
+		return nil, ErrInternal
+	}
+
 	return user, nil
 }
 

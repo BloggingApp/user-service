@@ -12,7 +12,7 @@ type User interface {
 	Create(ctx context.Context, user model.User) (*model.User, error)
 	FindByID(ctx context.Context, id uuid.UUID) (*model.User, error)
 	FindByEmail(ctx context.Context, email string) (*model.User, error)
-	FindByUsername(ctx context.Context, username string) (*model.User, error)
+	FindByUsername(ctx context.Context, username string) (*model.FullUser, error)
 	FindByEmailOrUsername(ctx context.Context, email string, username string) (*model.User, error)
 	UpdateByID(ctx context.Context, id uuid.UUID, updates map[string]interface{}) error
 	SearchByUsername(ctx context.Context, username string, limit int, offset int) ([]*model.FullUser, error)

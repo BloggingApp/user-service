@@ -14,9 +14,9 @@ import (
 
 type User interface {
 	SendRegistrationCode(ctx context.Context, createUserDto dto.CreateUserDto) error
-	VerifyRegistrationCodeAndCreateUser(ctx context.Context, code int) (*utils.JWTPair, error)
+	VerifyRegistrationCodeAndCreateUser(ctx context.Context, code int) (*dto.GetUserDto, *utils.JWTPair, error)
 	SendSignInCode(ctx context.Context, signInDto dto.SignInDto) error
-	VerifySignInCodeAndSignIn(ctx context.Context, code int) (*utils.JWTPair, error)
+	VerifySignInCodeAndSignIn(ctx context.Context, code int) (*dto.GetUserDto, *utils.JWTPair, error)
 	FindByID(ctx context.Context, id uuid.UUID) (*model.User, error)
 	SearchByUsername(ctx context.Context, username string, limit int, offset int) ([]*dto.GetUserDto, error)
 	RefreshTokens(ctx context.Context, refreshToken string) (*utils.JWTPair, error)
