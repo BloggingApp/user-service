@@ -23,6 +23,7 @@ func newUserRepo(db *pgx.Conn) User {
 func (r *userRepo) Create(ctx context.Context, user model.User) (*model.User, error) {
 	user.ID = uuid.New()
 	user.Role = "user"
+	user.Subscribers = 0
 	user.CreatedAt = time.Now()
 	user.UpdatedAt = time.Now()
 	_, err := r.db.Exec(
@@ -43,7 +44,7 @@ func (r *userRepo) Create(ctx context.Context, user model.User) (*model.User, er
 func (r *userRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.User, error) {
 	var user model.User
 	if err := r.db.QueryRow(ctx, `
-	SELECT u.id, u.email, u.username, u.password_hash, u.display_name, u.avatar_hash, u.bio, u.role, u.created_at, u.updated_at
+	SELECT u.id, u.email, u.username, u.password_hash, u.display_name, u.avatar_hash, u.bio, u.role, u.subscribers, u.created_at, u.updated_at
 	FROM users u
 	WHERE u.id = $1
 	`, id).Scan(
@@ -55,6 +56,7 @@ func (r *userRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.User, err
 		&user.AvatarHash,
 		&user.Bio,
 		&user.Role,
+		&user.Subscribers,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	); err != nil {
@@ -67,7 +69,7 @@ func (r *userRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.User, err
 func (r *userRepo) FindByEmail(ctx context.Context, email string) (*model.User, error) {
 	var user model.User
 	if err := r.db.QueryRow(ctx, `
-	SELECT u.id, u.email, u.username, u.password_hash, u.display_name, u.avatar_hash, u.bio, u.role, u.created_at, u.updated_at
+	SELECT u.id, u.email, u.username, u.password_hash, u.display_name, u.avatar_hash, u.bio, u.role, u.subscribers, u.created_at, u.updated_at
 	FROM users u
 	WHERE u.email = $1
 	`, email).Scan(
@@ -79,6 +81,7 @@ func (r *userRepo) FindByEmail(ctx context.Context, email string) (*model.User, 
 		&user.AvatarHash,
 		&user.Bio,
 		&user.Role,
+		&user.Subscribers,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	); err != nil {
@@ -91,7 +94,7 @@ func (r *userRepo) FindByEmail(ctx context.Context, email string) (*model.User, 
 func (r *userRepo) FindByUsername(ctx context.Context, username string) (*model.User, error) {
 	var user model.User
 	if err := r.db.QueryRow(ctx, `
-	SELECT u.id, u.email, u.username, u.password_hash, u.display_name, u.avatar_hash, u.bio, u.role, u.created_at, u.updated_at
+	SELECT u.id, u.email, u.username, u.password_hash, u.display_name, u.avatar_hash, u.bio, u.role, u.subscribers, u.created_at, u.updated_at
 	FROM users u
 	WHERE u.username = $1
 	`, username).Scan(
@@ -103,6 +106,7 @@ func (r *userRepo) FindByUsername(ctx context.Context, username string) (*model.
 		&user.AvatarHash,
 		&user.Bio,
 		&user.Role,
+		&user.Subscribers,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	); err != nil {
@@ -115,7 +119,7 @@ func (r *userRepo) FindByUsername(ctx context.Context, username string) (*model.
 func (r *userRepo) FindByEmailOrUsername(ctx context.Context, email string, username string) (*model.User, error) {
 	var user model.User
 	if err := r.db.QueryRow(ctx, `
-	SELECT u.id, u.email, u.username, u.password_hash, u.display_name, u.avatar_hash, u.bio, u.role, u.created_at, u.updated_at
+	SELECT u.id, u.email, u.username, u.password_hash, u.display_name, u.avatar_hash, u.bio, u.role, u.subscribers, u.created_at, u.updated_at
 	FROM users u
 	WHERE u.email = $1 OR u.username = $2
 	`, email, username).Scan(
@@ -127,6 +131,7 @@ func (r *userRepo) FindByEmailOrUsername(ctx context.Context, email string, user
 		&user.AvatarHash,
 		&user.Bio,
 		&user.Role,
+		&user.Subscribers,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	); err != nil {
@@ -168,7 +173,7 @@ func (r *userRepo) SearchByUsername(ctx context.Context, username string, limit 
 	rows, err := r.db.Query(
 		ctx,
 		`
-		SELECT u.id, u.email, u.username, u.display_name, u.avatar_hash, u.bio, u.role, u.created_at, u.updated_at
+		SELECT u.id, u.email, u.username, u.display_name, u.avatar_hash, u.bio, u.role, u.subscribers, u.created_at, u.updated_at
 		FROM users u
 		JOIN social_links sl ON u.id = sl.user_id
 		WHERE u.username LIKE %$1%
@@ -193,6 +198,7 @@ func (r *userRepo) SearchByUsername(ctx context.Context, username string, limit 
 			userAvatarHash *string
 			userBio *string
 			userRole string
+			userSubscribers int64
 			userCreatedAt time.Time
 			userUpdatedAt time.Time
 			socialLinkUserID *uuid.UUID
@@ -207,6 +213,7 @@ func (r *userRepo) SearchByUsername(ctx context.Context, username string, limit 
 			&userAvatarHash,
 			&userBio,
 			&userRole,
+			&userSubscribers,
 			&userCreatedAt,
 			&userUpdatedAt,
 			&socialLinkUserID,
@@ -226,6 +233,7 @@ func (r *userRepo) SearchByUsername(ctx context.Context, username string, limit 
                 AvatarHash: userAvatarHash,
                 Bio: userBio,
                 Role: userRole,
+				Subscribers: userSubscribers,
                 CreatedAt: userCreatedAt,
                 UpdatedAt: userUpdatedAt,
                 SocialLinks: []*model.SocialLink{},

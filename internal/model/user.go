@@ -15,6 +15,7 @@ type User struct {
 	AvatarHash      *string   `json:"avatar_hash"`
 	Bio             *string   `json:"bio"`
 	Role            string    `json:"role"`
+	Subscribers     int64     `json:"subscribers"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 }
@@ -28,6 +29,7 @@ type FullUser struct {
 	AvatarHash      *string             `json:"avatar_hash"`
 	Bio             *string             `json:"bio"`
 	Role            string              `json:"role"`
+	Subscribers     int64               `json:"subscribers"`
 	CreatedAt       time.Time           `json:"created_at"`
 	UpdatedAt       time.Time           `json:"updated_at"`
 	SocialLinks     []*SocialLink `json:"social_links"`
