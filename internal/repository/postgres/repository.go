@@ -15,6 +15,7 @@ type User interface {
 	FindByUsername(ctx context.Context, username string) (*model.User, error)
 	FindByEmailOrUsername(ctx context.Context, email string, username string) (*model.User, error)
 	UpdateByID(ctx context.Context, id uuid.UUID, updates map[string]interface{}) error
+	SearchByUsername(ctx context.Context, username string, limit int, offset int) ([]*model.FullUser, error)
 }
 
 type PostgresRepository struct {

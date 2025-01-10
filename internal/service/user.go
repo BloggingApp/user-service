@@ -118,6 +118,7 @@ func (s *userService) VerifyRegistrationCodeAndCreateUser(ctx context.Context, c
 		AccessSecret: []byte(os.Getenv("ACCESS_SECRET")),
 		AccessClaims: jwt.MapClaims{
 			"id": createdUser.ID.String(),
+			"role": createdUser.Role,
 			"exp": time.Hour * 3,
 		},
 		RefreshSecret: []byte(os.Getenv("REFRESH_SECRET")),
@@ -207,6 +208,7 @@ func (s *userService) VerifySignInCodeAndSignIn(ctx context.Context, code int) (
 		AccessSecret: []byte(os.Getenv("ACCESS_SECRET")),
 		AccessClaims: jwt.MapClaims{
 			"id": userData.ID.String(),
+			"role": userData.Role,
 			"exp": time.Hour * 3,
 		},
 		RefreshSecret: []byte(os.Getenv("REFRESH_SECRET")),
@@ -252,4 +254,98 @@ func (s *userService) FindByID(ctx context.Context, id uuid.UUID) (*model.User, 
 
 	s.logger.Info("HELLO USER FROM POSTGRES")
 	return user, nil
+}
+
+func (s *userService) SearchByUsername(ctx context.Context, username string, limit int, offset int) ([]*dto.GetUserDto, error) {
+	maxLimit := 10
+
+	if limit > maxLimit {
+		limit = maxLimit
+	}
+
+	searchResultsCache, err := redisrepo.GetMany[dto.GetUserDto](s.repo.Redis.Default, ctx, redisrepo.SearchResultsKey(username, limit, offset))
+	if err == nil {
+		return searchResultsCache, nil
+	}
+
+	if err != redis.Nil {
+		s.logger.Sugar().Errorf("failed to get value from redis: %s", err.Error())
+		return nil, ErrInternal
+	}
+
+	searchResults, err := s.repo.Postgres.User.SearchByUsername(ctx, username, limit, offset)
+	if err != nil {
+		s.logger.Sugar().Errorf("failed to search users by username(%s): %s", username, err.Error())
+		return nil, ErrInternal
+	}
+
+	searchResultsDto := s.convertFullUsersToGetUserDtos(searchResults)
+
+	if err := s.repo.Redis.Default.SetJSON(ctx, redisrepo.SearchResultsKey(username, limit, offset), searchResultsDto, time.Minute * 5); err != nil {
+		s.logger.Sugar().Errorf("failed to set value in redis: %s", err.Error())
+		return nil, ErrInternal
+	}
+
+	return searchResultsDto, nil
+}
+
+func (s *userService) convertFullUsersToGetUserDtos(users []*model.FullUser) []*dto.GetUserDto {
+	dtos := make([]*dto.GetUserDto, len(users))
+	for i, user := range users {
+		dtos[i] = &dto.GetUserDto{
+			ID:          user.ID,
+			Username:    user.Username,
+			DisplayName: user.DisplayName,
+			AvatarHash:  user.AvatarHash,
+			Bio:         user.Bio,
+			Role:        user.Role,
+			CreatedAt:   user.CreatedAt,
+			UpdatedAt:   user.UpdatedAt,
+			SocialLinks: user.SocialLinks,
+		}
+	}
+	return dtos	
+}
+
+func (s *userService) RefreshTokens(ctx context.Context, refreshToken string) (*utils.JWTPair, error) {
+	decodedToken, err := utils.DecodeJWT(refreshToken, []byte(os.Getenv("REFRESH_SECRET")))
+	if err != nil {
+		return nil, ErrUnauthorized
+	}
+
+	id, exists := decodedToken["id"].(string)
+	if !exists {
+		return nil, ErrUnauthorized
+	}
+
+	userID, err := uuid.FromBytes([]byte(id))
+	if err != nil {
+		return nil, ErrUnauthorized
+	}
+
+	user, err := s.FindByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	jwtPair, err := utils.GenerateJWTPair(utils.GenerateJWTPairDto{
+		Method: jwt.SigningMethodHS256,
+		AccessSecret: []byte(os.Getenv("ACCESS_SECRET")),
+		AccessClaims: jwt.MapClaims{
+			"id": user.ID.String(),
+			"role": user.Role,
+			"exp": time.Hour * 3,
+		},
+		RefreshSecret: []byte(os.Getenv("REFRESH_SECRET")),
+		RefreshClaims: jwt.MapClaims{
+			"id": user.ID.String(),
+			"exp": time.Hour * 24 * 7 * 2,
+		},
+	})
+	if err != nil {
+		s.logger.Sugar().Fatalf("failed to generate jwt pair: %s", err.Error())
+		return nil, ErrInternal
+	}
+
+	return jwtPair, nil
 }

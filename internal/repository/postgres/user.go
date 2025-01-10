@@ -43,8 +43,7 @@ func (r *userRepo) Create(ctx context.Context, user model.User) (*model.User, er
 func (r *userRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.User, error) {
 	var user model.User
 	if err := r.db.QueryRow(ctx, `
-	SELECT
-	u.id, u.email, u.username, u.password_hash, u.display_name, u.bio, u.role, u.created_at, u.updated_at
+	SELECT u.id, u.email, u.username, u.password_hash, u.display_name, u.avatar_hash, u.bio, u.role, u.created_at, u.updated_at
 	FROM users u
 	WHERE u.id = $1
 	`, id).Scan(
@@ -53,6 +52,7 @@ func (r *userRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.User, err
 		&user.Username,
 		&user.PasswordHash,
 		&user.DisplayName,
+		&user.AvatarHash,
 		&user.Bio,
 		&user.Role,
 		&user.CreatedAt,
@@ -67,8 +67,7 @@ func (r *userRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.User, err
 func (r *userRepo) FindByEmail(ctx context.Context, email string) (*model.User, error) {
 	var user model.User
 	if err := r.db.QueryRow(ctx, `
-	SELECT
-	u.id, u.email, u.username, u.password_hash, u.display_name, u.bio, u.role, u.created_at, u.updated_at
+	SELECT u.id, u.email, u.username, u.password_hash, u.display_name, u.avatar_hash, u.bio, u.role, u.created_at, u.updated_at
 	FROM users u
 	WHERE u.email = $1
 	`, email).Scan(
@@ -77,6 +76,7 @@ func (r *userRepo) FindByEmail(ctx context.Context, email string) (*model.User, 
 		&user.Username,
 		&user.PasswordHash,
 		&user.DisplayName,
+		&user.AvatarHash,
 		&user.Bio,
 		&user.Role,
 		&user.CreatedAt,
@@ -91,8 +91,7 @@ func (r *userRepo) FindByEmail(ctx context.Context, email string) (*model.User, 
 func (r *userRepo) FindByUsername(ctx context.Context, username string) (*model.User, error) {
 	var user model.User
 	if err := r.db.QueryRow(ctx, `
-	SELECT
-	u.id, u.email, u.username, u.password_hash, u.display_name, u.bio, u.role, u.created_at, u.updated_at
+	SELECT u.id, u.email, u.username, u.password_hash, u.display_name, u.avatar_hash, u.bio, u.role, u.created_at, u.updated_at
 	FROM users u
 	WHERE u.username = $1
 	`, username).Scan(
@@ -101,6 +100,7 @@ func (r *userRepo) FindByUsername(ctx context.Context, username string) (*model.
 		&user.Username,
 		&user.PasswordHash,
 		&user.DisplayName,
+		&user.AvatarHash,
 		&user.Bio,
 		&user.Role,
 		&user.CreatedAt,
@@ -115,8 +115,7 @@ func (r *userRepo) FindByUsername(ctx context.Context, username string) (*model.
 func (r *userRepo) FindByEmailOrUsername(ctx context.Context, email string, username string) (*model.User, error) {
 	var user model.User
 	if err := r.db.QueryRow(ctx, `
-	SELECT
-	u.id, u.email, u.username, u.password_hash, u.display_name, u.bio, u.role, u.created_at, u.updated_at
+	SELECT u.id, u.email, u.username, u.password_hash, u.display_name, u.avatar_hash, u.bio, u.role, u.created_at, u.updated_at
 	FROM users u
 	WHERE u.email = $1 OR u.username = $2
 	`, email, username).Scan(
@@ -125,6 +124,7 @@ func (r *userRepo) FindByEmailOrUsername(ctx context.Context, email string, user
 		&user.Username,
 		&user.PasswordHash,
 		&user.DisplayName,
+		&user.AvatarHash,
 		&user.Bio,
 		&user.Role,
 		&user.CreatedAt,
@@ -156,4 +156,100 @@ func (r *userRepo) UpdateByID(ctx context.Context, id uuid.UUID, updates map[str
 
 	_, err := r.db.Exec(ctx, query, args...)
 	return err
+}
+
+func (r *userRepo) SearchByUsername(ctx context.Context, username string, limit int, offset int) ([]*model.FullUser, error) {
+	maxLimit := 100
+
+	if limit > maxLimit {
+		limit = maxLimit
+	}
+
+	rows, err := r.db.Query(
+		ctx,
+		`
+		SELECT u.id, u.email, u.username, u.display_name, u.avatar_hash, u.bio, u.role, u.created_at, u.updated_at
+		FROM users u
+		JOIN social_links sl ON u.id = sl.user_id
+		WHERE u.username LIKE %$1%
+		LIMIT $2
+		OFFSET $3
+		`,
+		username,
+		limit,
+		offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	userMap := make(map[uuid.UUID]*model.FullUser)
+	for rows.Next() {
+		var (
+			userID uuid.UUID
+			userEmail string
+			userUsername string
+			userDisplayName *string
+			userAvatarHash *string
+			userBio *string
+			userRole string
+			userCreatedAt time.Time
+			userUpdatedAt time.Time
+			socialLinkUserID *uuid.UUID
+			socialLinkPlatform *string
+			socialLinkUrl *string
+		)
+		if err := rows.Scan(
+			&userID,
+			&userEmail,
+			&userUsername,
+			&userDisplayName,
+			&userAvatarHash,
+			&userBio,
+			&userRole,
+			&userCreatedAt,
+			&userUpdatedAt,
+			&socialLinkUserID,
+			&socialLinkPlatform,
+			&socialLinkUrl,
+		); err != nil {
+			return nil, err
+		}
+
+		user, exists := userMap[userID]
+		if !exists {
+			user = &model.FullUser{
+				ID: userID,
+                Email: userEmail,
+                Username: userUsername,
+                DisplayName: userDisplayName,
+                AvatarHash: userAvatarHash,
+                Bio: userBio,
+                Role: userRole,
+                CreatedAt: userCreatedAt,
+                UpdatedAt: userUpdatedAt,
+                SocialLinks: []*model.SocialLink{},
+			}
+			userMap[userID] = user
+		}
+
+		if socialLinkUserID != nil && socialLinkPlatform != nil && socialLinkUrl != nil {
+			user.SocialLinks = append(user.SocialLinks, &model.SocialLink{
+				UserID: *socialLinkUserID,
+				Platform: *socialLinkPlatform,
+				Url: *socialLinkUrl,
+			})
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	var users []*model.FullUser
+	for _, user := range userMap {
+		users = append(users, user)
+	}
+
+	return users, nil
 }

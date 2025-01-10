@@ -8,4 +8,5 @@ var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrInvalidCode = errors.New("invalid code")
 	ErrUserNotFound = errors.New("user not found")
+	ErrUnauthorized = errors.New("user is not authorized")
 )
