@@ -405,7 +405,7 @@ func maximumLimit(l *int) {
 	}
 }
 
-func (r *userRepo) FindUserSubscribers(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullSubscriber, error) {
+func (r *userRepo) FindUserSubscribers(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullSub, error) {
 	maximumLimit(&limit)
 
 	rows, err := r.db.Query(
@@ -427,9 +427,9 @@ func (r *userRepo) FindUserSubscribers(ctx context.Context, id uuid.UUID, limit 
 	}
 	defer rows.Close()
 
-	var subs []*model.FullSubscriber
+	var subs []*model.FullSub
 	for rows.Next() {
-		var sub model.FullSubscriber
+		var sub model.FullSub
 		if err := rows.Scan(
 			&sub.ID,
 			&sub.Username,
@@ -448,4 +448,63 @@ func (r *userRepo) FindUserSubscribers(ctx context.Context, id uuid.UUID, limit 
 	}
 
 	return subs, nil
+}
+
+func (r *userRepo) Subscribe(ctx context.Context, subscriber model.Subscriber) error {
+	_, err := r.db.Exec(ctx, "INSERT INTO subscribers(user_id, sub_id) VALUES($1, $2)", subscriber.UserID, subscriber.SubID)
+	return err
+}
+
+func (r *userRepo) FindUserSubscriptions(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullSub, error) {
+	maximumLimit(&limit)
+
+	rows, err := r.db.Query(
+		ctx,
+		`
+		SELECT s.sub_id, u.username, u.display_name, u.avatar_hash, u.bio
+		FROM subscribers s
+		JOIN users u ON s.user_id = u.id
+		WHERE s.sub_id = $1
+		LIMIT $2
+		OFFSET $3
+		`,
+		id,
+		limit,
+		offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var subs []*model.FullSub
+	for rows.Next() {
+		var sub model.FullSub
+		if err := rows.Scan(
+			&sub.ID,
+			&sub.Username,
+			&sub.DisplayName,
+			&sub.AvatarHash,
+			&sub.Bio,
+		); err != nil {
+			return nil, err
+		}
+
+		subs = append(subs, &sub)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return subs, nil
+}
+
+func (r *userRepo) ExistsWithID(ctx context.Context, id uuid.UUID) (bool, error) {
+	var exists bool
+	if err := r.db.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM users u WHERE u.id = $1)", id).Scan(&exists); err != nil {
+		return false, err
+	}
+
+	return exists, nil
 }

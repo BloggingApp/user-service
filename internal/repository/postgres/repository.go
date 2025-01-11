@@ -16,7 +16,10 @@ type User interface {
 	FindByEmailOrUsername(ctx context.Context, email string, username string) (*model.User, error)
 	UpdateByID(ctx context.Context, id uuid.UUID, updates map[string]interface{}) error
 	SearchByUsername(ctx context.Context, username string, limit int, offset int) ([]*model.FullUser, error)
-	FindUserSubscribers(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullSubscriber, error)
+	FindUserSubscribers(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullSub, error)
+	Subscribe(ctx context.Context, subscriber model.Subscriber) error
+	FindUserSubscriptions(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullSub, error)
+	ExistsWithID(ctx context.Context, id uuid.UUID) (bool, error)
 }
 
 type PostgresRepository struct {

@@ -35,4 +35,4 @@ func GetUserDtoFromFullUser(fullUser model.FullUser) *GetUserDto {
 	}
 }
 
-type GetUserSubsDto []*model.FullSubscriber
+type GetUserSubsDto []*model.FullSub

@@ -9,4 +9,7 @@ var (
 	ErrInvalidCode = errors.New("invalid code")
 	ErrUserNotFound = errors.New("user not found")
 	ErrUnauthorized = errors.New("user is not authorized")
+	ErrSubToYourself = errors.New("you cannot subscribe to yourself")
+	ErrAlreadySubscribed = errors.New("you have already subscribed to this user")
+	ErrCooldown = errors.New("cooldown")
 )

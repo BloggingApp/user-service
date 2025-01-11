@@ -9,6 +9,8 @@ const (
 	TEMP_SIGNIN_CODE_KEY = "sign-in-code:%d" // <sign-in code>
 	SEARCH_RESULTS_KEY = "search-results:%s:%d:%d" // <any word>:<limit>:<offset>
 	USER_SUBSCRIBERS_KEY = "user-subscribers:%s:%d:%d" // <userID>:<limit>:<offset>
+	USER_SUBSCRIPTIONS_KEY = "user-subscriptions:%s:%d:%d" // <userID>:<limit>:<offset>
+	IS_SUBSCRIBED_KEY = "%s-is-subscribed-on:%s" // <subID>:<userID>
 )
 
 func UserKey(userID string) string {
@@ -33,4 +35,12 @@ func SearchResultsKey(word string, limit int, offset int) string {
 
 func UserSubscribersKey(userID string, limit int, offset int) string {
 	return fmt.Sprintf(USER_SUBSCRIBERS_KEY, userID, limit, offset)
+}
+
+func UserSubscriptionsKey(userID string, limit int, offset int) string {
+	return fmt.Sprintf(USER_SUBSCRIPTIONS_KEY, userID, limit, offset)
+}
+
+func IsSubscribedKey(subID string, userID string) string {
+	return fmt.Sprintf(IS_SUBSCRIBED_KEY, subID, userID)
 }

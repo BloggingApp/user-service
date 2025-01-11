@@ -16,6 +16,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -33,6 +34,8 @@ const (
 
 	MIN_SIGNIN_CODE = 100_000
 	MAX_SIGNIN_CODE = 999_999
+
+	MAX_SEARCH_LIMIT = 10
 )
 
 func newUserService(logger *zap.Logger, repo *repository.Repository, rabbitmq *rabbitmq.MQConn) User {
@@ -308,11 +311,7 @@ func (s *userService) FindByUsername(ctx context.Context, username string) (*dto
 }
 
 func (s *userService) SearchByUsername(ctx context.Context, username string, limit int, offset int) ([]*dto.GetUserDto, error) {
-	maxLimit := 10
-
-	if limit > maxLimit {
-		limit = maxLimit
-	}
+	maximumLimit(&limit)
 
 	searchResultsCache, err := redisrepo.GetMany[dto.GetUserDto](s.repo.Redis.Default, ctx, redisrepo.SearchResultsKey(username, limit, offset))
 	if err == nil {
@@ -393,18 +392,13 @@ func (s *userService) RefreshTokens(ctx context.Context, refreshToken string) (*
 	return jwtPair, nil
 }
 
-func (s *userService) FindUserSubscribers(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullSubscriber, error) {
-	maxLimit := 10
+func (s *userService) FindUserSubscribers(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullSub, error) {
+	maximumLimit(&limit)
 
-	if limit > maxLimit {
-		limit = maxLimit
-	}
-
-	subsCache, err := redisrepo.GetMany[model.FullSubscriber](s.repo.Redis.Default, ctx, redisrepo.UserSubscribersKey(id.String(), limit, offset))
+	subsCache, err := redisrepo.GetMany[model.FullSub](s.repo.Redis.Default, ctx, redisrepo.UserSubscribersKey(id.String(), limit, offset))
 	if err == nil {
 		return subsCache, nil
 	}
-
 	if err != redis.Nil {
 		s.logger.Sugar().Errorf("failed to get subscribers from redis: %s", err.Error())
 		return nil, ErrInternal
@@ -426,4 +420,99 @@ func (s *userService) FindUserSubscribers(ctx context.Context, id uuid.UUID, lim
 	}
 
 	return subs, nil
+}
+
+func (s *userService) Subscribe(ctx context.Context, subscriber model.Subscriber) error {
+	if subscriber.SubID.String() == subscriber.UserID.String() {
+		return ErrSubToYourself
+	}
+
+	isSubscribed, err := s.repo.Redis.Default.Get(ctx, redisrepo.IsSubscribedKey(subscriber.SubID.String(), subscriber.UserID.String())).Bool()
+	if err != nil && err != redis.Nil {
+		return ErrInternal
+	}
+	if isSubscribed {
+		return ErrCooldown
+	}
+
+	defer func()  {
+		if err := s.repo.Redis.Default.Set(ctx, redisrepo.IsSubscribedKey(subscriber.SubID.String(), subscriber.UserID.String()), true, time.Minute * 5); err != nil {
+			s.logger.Sugar().Errorf("failed to set isSubscribed in redis: %s", err.Error())
+		}
+	}()
+
+	userExists, err := s.repo.Postgres.User.ExistsWithID(ctx, subscriber.UserID)
+	if err != nil {
+		s.logger.Sugar().Errorf("failed to get exists(%s) from postgres: %s", subscriber.UserID, err.Error())
+		return ErrInternal
+	}
+	if !userExists {
+		return ErrUserNotFound
+	}
+
+	if err := s.repo.Postgres.User.Subscribe(ctx, subscriber); err != nil {
+		if pgError, ok := err.(*pgconn.PgError); ok && pgError.Code == "23505" {
+			return ErrAlreadySubscribed
+		}
+
+		s.logger.Sugar().Errorf("failed to subscribe user(%s) on user(%s) in postgres: %s", subscriber.SubID.String(), subscriber.UserID.String(), err.Error())
+		return ErrInternal
+	}
+
+	updates := map[string]interface{}{
+		"subscribers": +1,
+	}
+	if err := s.repo.Postgres.User.UpdateByID(ctx, subscriber.UserID, updates); err != nil {
+		s.logger.Sugar().Errorf("failed to update user(%s): %s", subscriber.UserID, err.Error())
+		return ErrInternal
+	}
+
+	if err := s.repo.Redis.Default.Del(
+		ctx,
+		redisrepo.UserSubscribersKey(subscriber.UserID.String(), MAX_SEARCH_LIMIT, 0),
+		redisrepo.UserSubscribersKey(subscriber.UserID.String(), MAX_SEARCH_LIMIT, 1),
+		redisrepo.UserSubscriptionsKey(subscriber.SubID.String(), MAX_SEARCH_LIMIT, 0),
+		redisrepo.UserSubscriptionsKey(subscriber.SubID.String(), MAX_SEARCH_LIMIT, 1),
+	).Err(); err != nil {
+		s.logger.Sugar().Errorf("failed to delete redis cache: %s", err.Error())
+		return ErrInternal
+	}
+
+	return nil
+}
+
+func (s *userService) FindUserSubscriptions(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullSub, error) {
+	maximumLimit(&limit)
+
+	subsCache, err := redisrepo.GetMany[model.FullSub](s.repo.Redis.Default, ctx, redisrepo.UserSubscriptionsKey(id.String(), limit, offset))
+	if err == nil {
+		return subsCache, nil
+	}
+	if err != redis.Nil {
+		s.logger.Sugar().Errorf("failed to get subscriptions from redis: %s", err.Error())
+		return nil, ErrInternal
+	}
+
+	subs, err := s.repo.Postgres.User.FindUserSubscriptions(ctx, id, limit, offset)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, pgx.ErrNoRows
+		}
+
+		s.logger.Sugar().Errorf("failed to get user(%s) subscriptions from postgres: %s", id.String(), err.Error())
+		return nil, ErrInternal
+	}
+
+	if err := s.repo.Redis.Default.SetJSON(ctx, redisrepo.UserSubscriptionsKey(id.String(), limit, offset), subs, time.Minute * 1); err != nil {
+		s.logger.Sugar().Errorf("failed to set user(%s) subscriptions in redis: %s", id.String(), err.Error())
+		return nil, ErrInternal
+	}
+
+	return subs, nil
+}
+
+func maximumLimit(limit *int) {
+	if *limit > MAX_SEARCH_LIMIT {
+		*limit = MAX_SEARCH_LIMIT
+	}
 }
