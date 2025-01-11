@@ -22,7 +22,7 @@ func (h *Handler) usernameMiddleware(c *gin.Context) {
 		return
 	}
 
-	extractedUsername := strings.TrimSpace(strings.Split(username, "@")[0])
+	extractedUsername := strings.TrimSpace(strings.Split(username, "@")[1])
 	if extractedUsername == "" {
 		c.JSON(http.StatusBadRequest, dto.NewBasicResponse(false, errUsernameIsNotProvided.Error()))
 		c.Abort()

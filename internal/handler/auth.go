@@ -14,7 +14,7 @@ func (h *Handler) authSendRegistrationCode(c *gin.Context) {
 		return
 	}
 
-	if err := h.services.User.SendRegistrationCode(c.Request.Context(), input); err != nil {
+	if err := h.services.Auth.SendRegistrationCode(c.Request.Context(), input); err != nil {
 		c.JSON(http.StatusInternalServerError, dto.NewBasicResponse(false, err.Error()))
 		return
 	}
@@ -33,7 +33,7 @@ func (h *Handler) authVerifyRegistrationCodeAndCreateUser(c *gin.Context) {
 		return
 	}
 
-	user, tokenPair, err := h.services.User.VerifyRegistrationCodeAndCreateUser(c.Request.Context(), input.Code)
+	user, tokenPair, err := h.services.Auth.VerifyRegistrationCodeAndCreateUser(c.Request.Context(), input.Code)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, dto.NewBasicResponse(false, err.Error()))
 		return
@@ -51,7 +51,7 @@ func (h *Handler) authSendSignInCode(c *gin.Context) {
 		return
 	}
 
-	if err := h.services.User.SendSignInCode(c.Request.Context(), input); err != nil {
+	if err := h.services.Auth.SendSignInCode(c.Request.Context(), input); err != nil {
 		c.JSON(http.StatusInternalServerError, dto.NewBasicResponse(false, err.Error()))
 		return
 	}
@@ -70,7 +70,7 @@ func (h *Handler) authVerifySignInCodeAndSignIn(c *gin.Context) {
 		return
 	}
 
-	user, tokenPair, err := h.services.User.VerifySignInCodeAndSignIn(c.Request.Context(), input.Code)
+	user, tokenPair, err := h.services.Auth.VerifySignInCodeAndSignIn(c.Request.Context(), input.Code)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, dto.NewBasicResponse(false, err.Error()))
 		return
@@ -88,7 +88,7 @@ func (h *Handler) authRefresh(c *gin.Context) {
 		return
 	}
 
-	tokenPair, err := h.services.User.RefreshTokens(c.Request.Context(), refreshToken)
+	tokenPair, err := h.services.Auth.RefreshTokens(c.Request.Context(), refreshToken)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, dto.NewBasicResponse(false, err.Error()))
 		return

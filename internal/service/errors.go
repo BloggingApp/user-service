@@ -4,6 +4,7 @@ import "errors"
 
 var (
 	ErrInternal = errors.New("internal server error")
+	ErrUsernameCannotContainSpecialCharacters = errors.New("username cannot contain special characters")
 	ErrInternalTryAgainLater = errors.New("internal server error, please try again later")
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrInvalidCode = errors.New("invalid code")
