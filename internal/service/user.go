@@ -392,3 +392,38 @@ func (s *userService) RefreshTokens(ctx context.Context, refreshToken string) (*
 
 	return jwtPair, nil
 }
+
+func (s *userService) FindUserSubscribers(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullSubscriber, error) {
+	maxLimit := 10
+
+	if limit > maxLimit {
+		limit = maxLimit
+	}
+
+	subsCache, err := redisrepo.GetMany[model.FullSubscriber](s.repo.Redis.Default, ctx, redisrepo.UserSubscribersKey(id.String(), limit, offset))
+	if err == nil {
+		return subsCache, nil
+	}
+
+	if err != redis.Nil {
+		s.logger.Sugar().Errorf("failed to get subscribers from redis: %s", err.Error())
+		return nil, ErrInternal
+	}
+
+	subs, err := s.repo.Postgres.User.FindUserSubscribers(ctx, id, limit, offset)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, pgx.ErrNoRows
+		}
+
+		s.logger.Sugar().Errorf("failed to get user(%s) subscribers from postgres: %s", id.String(), err.Error())
+		return nil, ErrInternal
+	}
+
+	if err := s.repo.Redis.Default.SetJSON(ctx, redisrepo.UserSubscribersKey(id.String(), limit, offset), subs, time.Minute * 1); err != nil {
+		s.logger.Sugar().Errorf("failed to set user(%s) subscribers in redis: %s", id.String(), err.Error())
+		return nil, ErrInternal
+	}
+
+	return subs, nil
+}

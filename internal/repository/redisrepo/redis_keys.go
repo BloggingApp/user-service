@@ -8,6 +8,7 @@ const (
 	TEMP_REGISTRATION_CODE_KEY = "registration-code:%d" // <registration code>
 	TEMP_SIGNIN_CODE_KEY = "sign-in-code:%d" // <sign-in code>
 	SEARCH_RESULTS_KEY = "search-results:%s:%d:%d" // <any word>:<limit>:<offset>
+	USER_SUBSCRIBERS_KEY = "user-subscribers:%s:%d:%d" // <userID>:<limit>:<offset>
 )
 
 func UserKey(userID string) string {
@@ -28,4 +29,8 @@ func TempSignInCodeKey(code int) string {
 
 func SearchResultsKey(word string, limit int, offset int) string {
 	return fmt.Sprintf(SEARCH_RESULTS_KEY, word, limit, offset)
+}
+
+func UserSubscribersKey(userID string, limit int, offset int) string {
+	return fmt.Sprintf(USER_SUBSCRIBERS_KEY, userID, limit, offset)
 }

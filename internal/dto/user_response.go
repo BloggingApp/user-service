@@ -34,3 +34,5 @@ func GetUserDtoFromFullUser(fullUser model.FullUser) *GetUserDto {
 		SocialLinks: fullUser.SocialLinks,
 	}
 }
+
+type GetUserSubsDto []*model.FullSubscriber

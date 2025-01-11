@@ -10,6 +10,8 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+const MAX_LIMIT = 50
+
 type userRepo struct {
 	db *pgx.Conn
 }
@@ -303,11 +305,7 @@ func (r *userRepo) UpdateByID(ctx context.Context, id uuid.UUID, updates map[str
 }
 
 func (r *userRepo) SearchByUsername(ctx context.Context, username string, limit int, offset int) ([]*model.FullUser, error) {
-	maxLimit := 100
-
-	if limit > maxLimit {
-		limit = maxLimit
-	}
+	maximumLimit(&limit)
 
 	rows, err := r.db.Query(
 		ctx,
@@ -399,4 +397,55 @@ func (r *userRepo) SearchByUsername(ctx context.Context, username string, limit 
 	}
 
 	return users, nil
+}
+
+func maximumLimit(l *int) {
+	if *l > MAX_LIMIT {
+		*l = MAX_LIMIT
+	}
+}
+
+func (r *userRepo) FindUserSubscribers(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullSubscriber, error) {
+	maximumLimit(&limit)
+
+	rows, err := r.db.Query(
+		ctx,
+		`
+		SELECT s.sub_id, u.username, u.display_name, u.avatar_hash, u.bio
+		FROM subscribers s
+		JOIN users u ON s.sub_id = u.id
+		WHERE s.user_id = $1
+		LIMIT $2
+		OFFSET $3
+		`,
+		id,
+		limit,
+		offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var subs []*model.FullSubscriber
+	for rows.Next() {
+		var sub model.FullSubscriber
+		if err := rows.Scan(
+			&sub.ID,
+			&sub.Username,
+			&sub.DisplayName,
+			&sub.AvatarHash,
+			&sub.Bio,
+		); err != nil {
+			return nil, err
+		}
+
+		subs = append(subs, &sub)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return subs, nil
 }

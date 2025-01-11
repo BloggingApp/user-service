@@ -21,6 +21,7 @@ type User interface {
 	FindByUsername(ctx context.Context, username string) (*dto.GetUserDto, error)
 	SearchByUsername(ctx context.Context, username string, limit int, offset int) ([]*dto.GetUserDto, error)
 	RefreshTokens(ctx context.Context, refreshToken string) (*utils.JWTPair, error)
+	FindUserSubscribers(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullSubscriber, error)
 }
 
 type Service struct {
