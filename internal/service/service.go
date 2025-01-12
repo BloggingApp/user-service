@@ -27,6 +27,7 @@ type User interface {
 	FindUserSubscribers(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullSub, error)
 	Subscribe(ctx context.Context, subscriber model.Subscriber) error
 	FindUserSubscriptions(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullSub, error)
+	UpdateByID(ctx context.Context, id uuid.UUID, updates map[string]interface{}) error
 }
 
 type Service struct {

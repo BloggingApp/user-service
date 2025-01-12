@@ -508,3 +508,12 @@ func (r *userRepo) ExistsWithID(ctx context.Context, id uuid.UUID) (bool, error)
 
 	return exists, nil
 }
+
+func (r *userRepo) ExistsWithUsername(ctx context.Context, username string) (bool, error) {
+	var exists bool
+	if err := r.db.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM users u WHERE u.username = $1)", username).Scan(&exists); err != nil {
+		return false, err
+	}
+
+	return exists, nil
+}

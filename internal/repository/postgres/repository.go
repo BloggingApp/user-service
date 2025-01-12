@@ -20,6 +20,7 @@ type User interface {
 	Subscribe(ctx context.Context, subscriber model.Subscriber) error
 	FindUserSubscriptions(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullSub, error)
 	ExistsWithID(ctx context.Context, id uuid.UUID) (bool, error)
+	ExistsWithUsername(ctx context.Context, username string) (bool, error)
 }
 
 type PostgresRepository struct {

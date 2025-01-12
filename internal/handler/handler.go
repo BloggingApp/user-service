@@ -28,7 +28,7 @@ func (h *Handler) InitRoutes() *gin.Engine {
 
 	r.Use(cors.New(cors.Config{
 		AllowOrigins: []string{viper.GetString("client.origin")},
-		AllowMethods: []string{"POST", "GET", "PUT"},
+		AllowMethods: []string{"POST", "GET", "PATCH"},
 		AllowCredentials: true,
 	}))
 
@@ -52,6 +52,7 @@ func (h *Handler) InitRoutes() *gin.Engine {
 				me.GET("/", h.usersMe)
 				me.GET("/subscribers", h.usersGetSubscribers)
 				me.GET("/subscriptions", h.usersGetSubscriptions)
+				me.PATCH("/update", h.usersUpdate)
 			}
 
 			users.GET("/byUsername/:username", h.authMiddleware, h.usernameMiddleware, h.usersGetByUsername)

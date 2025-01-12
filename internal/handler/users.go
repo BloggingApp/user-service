@@ -13,7 +13,7 @@ import (
 func (h *Handler) usersMe(c *gin.Context) {
 	user := h.getUser(c)
 
-	c.JSON(http.StatusOK, dto.GetUserDtoFromFullUser(*user))
+	c.JSON(http.StatusOK, model.FullUserWithoutPasswordHashFromFullUser(*user))
 }
 
 func (h *Handler) usersGetByUsername(c *gin.Context) {
@@ -90,4 +90,21 @@ func (h *Handler) usersGetSubscriptions(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, subscriptions)
+}
+
+func (h *Handler) usersUpdate(c *gin.Context) {
+	user := h.getUser(c)
+
+	var updates map[string]interface{}
+	if err := c.ShouldBindJSON(&updates); err != nil {
+		c.JSON(http.StatusBadRequest, dto.NewBasicResponse(false, err.Error()))
+		return
+	}
+
+	if err := h.services.User.UpdateByID(c.Request.Context(), user.ID, updates); err != nil {
+		c.JSON(http.StatusInternalServerError, dto.NewBasicResponse(false, err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.NewBasicResponse(true, ""))
 }

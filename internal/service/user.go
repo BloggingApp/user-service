@@ -261,3 +261,50 @@ func maximumLimit(limit *int) {
 		*limit = MAX_SEARCH_LIMIT
 	}
 }
+
+func (s *userService) UpdateByID(ctx context.Context, id uuid.UUID, updates map[string]interface{}) error {
+	allowedFields := []string{"username", "display_name", "bio"}
+	allowedFieldsSet := make(map[string]struct{}, len(allowedFields))
+	for _, field := range allowedFields {
+		allowedFieldsSet[field] = struct{}{}
+	}
+
+	for field := range updates {
+		if _, ok := allowedFieldsSet[field]; !ok {
+			return ErrFieldsNotAllowedToUpdate
+		}
+	}
+
+	user, err := s.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if username, ok := updates["username"]; ok {
+		exists, err := s.repo.Postgres.User.ExistsWithUsername(ctx, username.(string))
+		if err != nil {
+			s.logger.Sugar().Errorf("failed to get exists with username(%s) result from postgres: %s", username.(string), err.Error())
+			return ErrInternal
+		}
+		if exists {
+			return ErrUserWithUsernameAlreadyExists
+		}
+	}
+
+	// Clear cache
+	if err := s.repo.Redis.Del(
+		ctx,
+		redisrepo.UserKey(id.String()),
+		redisrepo.UserByUsernameKey(user.Username),
+	).Err(); err != nil {
+		s.logger.Sugar().Errorf("failed to get user(%s) from redis: %s", id.String(), err.Error())
+		return ErrInternal
+	}
+
+	if err := s.repo.Postgres.User.UpdateByID(ctx, id, updates); err != nil {
+		s.logger.Sugar().Errorf("failed to update user(%s): %s", id.String(), err.Error())
+		return ErrInternal
+	}
+
+	return nil
+}

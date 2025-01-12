@@ -13,4 +13,6 @@ var (
 	ErrSubToYourself = errors.New("you cannot subscribe to yourself")
 	ErrAlreadySubscribed = errors.New("you have already subscribed to this user")
 	ErrCooldown = errors.New("cooldown")
+	ErrFieldsNotAllowedToUpdate = errors.New("these fields are not allowed to be updated")
+	ErrUserWithUsernameAlreadyExists = errors.New("user with this username is already exists")
 )
