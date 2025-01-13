@@ -101,7 +101,24 @@ func (h *Handler) usersUpdate(c *gin.Context) {
 		return
 	}
 
-	if err := h.services.User.UpdateByID(c.Request.Context(), user.ID, updates); err != nil {
+	if err := h.services.User.Update(c.Request.Context(), *user, updates); err != nil {
+		c.JSON(http.StatusInternalServerError, dto.NewBasicResponse(false, err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.NewBasicResponse(true, ""))
+}
+
+func (h *Handler) usersSetAvatar(c *gin.Context) {
+	user := h.getUser(c)
+
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.NewBasicResponse(false, err.Error()))
+		return
+	}
+
+	if err := h.services.User.SetAvatar(c.Request.Context(), *user, fileHeader); err != nil {
 		c.JSON(http.StatusInternalServerError, dto.NewBasicResponse(false, err.Error()))
 		return
 	}

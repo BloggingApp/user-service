@@ -2,6 +2,12 @@ package service
 
 import (
 	"context"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/BloggingApp/user-service/internal/dto"
@@ -262,7 +268,7 @@ func maximumLimit(limit *int) {
 	}
 }
 
-func (s *userService) UpdateByID(ctx context.Context, id uuid.UUID, updates map[string]interface{}) error {
+func (s *userService) Update(ctx context.Context, user model.FullUser, updates map[string]interface{}) error {
 	allowedFields := []string{"username", "display_name", "bio"}
 	allowedFieldsSet := make(map[string]struct{}, len(allowedFields))
 	for _, field := range allowedFields {
@@ -273,11 +279,6 @@ func (s *userService) UpdateByID(ctx context.Context, id uuid.UUID, updates map[
 		if _, ok := allowedFieldsSet[field]; !ok {
 			return ErrFieldsNotAllowedToUpdate
 		}
-	}
-
-	user, err := s.FindByID(ctx, id)
-	if err != nil {
-		return err
 	}
 
 	if username, ok := updates["username"]; ok {
@@ -294,16 +295,75 @@ func (s *userService) UpdateByID(ctx context.Context, id uuid.UUID, updates map[
 	// Clear cache
 	if err := s.repo.Redis.Del(
 		ctx,
-		redisrepo.UserKey(id.String()),
+		redisrepo.UserKey(user.ID.String()),
 		redisrepo.UserByUsernameKey(user.Username),
 	).Err(); err != nil {
-		s.logger.Sugar().Errorf("failed to get user(%s) from redis: %s", id.String(), err.Error())
+		s.logger.Sugar().Errorf("failed to get user(%s) from redis: %s", user.ID.String(), err.Error())
 		return ErrInternal
 	}
 
-	if err := s.repo.Postgres.User.UpdateByID(ctx, id, updates); err != nil {
-		s.logger.Sugar().Errorf("failed to update user(%s): %s", id.String(), err.Error())
+	if err := s.repo.Postgres.User.UpdateByID(ctx, user.ID, updates); err != nil {
+		s.logger.Sugar().Errorf("failed to update user(%s): %s", user.ID.String(), err.Error())
 		return ErrInternal
+	}
+
+	return nil
+}
+
+func (s *userService) SetAvatar(ctx context.Context, user model.FullUser, fileHeader *multipart.FileHeader) error {
+	file, err := fileHeader.Open()
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	buff := make([]byte, 512)
+	if _, err := file.Read(buff); err != nil {
+		return err
+	}
+
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+        return err
+    }
+
+	if !strings.HasPrefix(http.DetectContentType(buff), "image/") {
+        return ErrFileMustBeImage
+    }
+
+	ext := filepath.Ext(fileHeader.Filename)
+	if ext == "" {
+		return ErrFileMustHaveValidExtension
+	}
+
+	uploadPath := "public/user-avatars/"
+	filePath := uploadPath + user.ID.String() + ext
+
+	out, err := os.Create(filePath)
+	if err != nil {
+		s.logger.Sugar().Errorf("failed to create user(%s) avatar file: %s", user.ID, err.Error())
+		return ErrInternal
+	}
+	defer out.Close()
+
+	if _, err := io.Copy(out, file); err != nil {
+		s.logger.Sugar().Errorf("failed to copy user(%s) avatar file: %s", user.ID.String(), err.Error())
+		return ErrInternal
+	}
+
+	updates := map[string]interface{}{
+		"avatar_hash": "/" + filePath,
+	}
+	if err := s.repo.Postgres.User.UpdateByID(ctx, user.ID, updates); err != nil {
+		s.logger.Sugar().Errorf("failed to update user(%s) avatar: %s", user.ID.String(), err.Error())
+		return ErrInternal
+	}
+
+	if err := s.repo.Redis.Default.Del(
+		ctx,
+		redisrepo.UserKey(user.ID.String()),
+		redisrepo.UserByUsernameKey(user.Username),
+	).Err(); err != nil {
+		s.logger.Sugar().Errorf("failed to clear cache after user(%s) avatar update: %s", user.ID.String(), err.Error())
 	}
 
 	return nil

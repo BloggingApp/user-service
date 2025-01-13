@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"mime/multipart"
 
 	"github.com/BloggingApp/user-service/internal/dto"
 	"github.com/BloggingApp/user-service/internal/model"
@@ -27,7 +28,8 @@ type User interface {
 	FindUserSubscribers(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullSub, error)
 	Subscribe(ctx context.Context, subscriber model.Subscriber) error
 	FindUserSubscriptions(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullSub, error)
-	UpdateByID(ctx context.Context, id uuid.UUID, updates map[string]interface{}) error
+	Update(ctx context.Context, user model.FullUser, updates map[string]interface{}) error
+	SetAvatar(ctx context.Context, user model.FullUser, fileHeader *multipart.FileHeader) error
 }
 
 type Service struct {

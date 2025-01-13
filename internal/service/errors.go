@@ -17,4 +17,6 @@ var (
 	ErrUserWithUsernameAlreadyExists = errors.New("user with this username is already exists")
 	ErrUserWithEmailAlreadyExists = errors.New("user with this email is already exists")
 	ErrUserAlreadyExists = errors.New("user with this email or username is already exists")
+	ErrFileMustBeImage = errors.New("file must be image")
+	ErrFileMustHaveValidExtension = errors.New("file must have a valid extension")
 )

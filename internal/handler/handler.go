@@ -32,6 +32,8 @@ func (h *Handler) InitRoutes() *gin.Engine {
 		AllowCredentials: true,
 	}))
 
+	r.Static("/public", "./public")
+
 	v1 := r.Group("/api/v1")
 	{
 		auth := v1.Group("/auth")
@@ -52,7 +54,12 @@ func (h *Handler) InitRoutes() *gin.Engine {
 				me.GET("/", h.usersMe)
 				me.GET("/subscribers", h.usersGetSubscribers)
 				me.GET("/subscriptions", h.usersGetSubscriptions)
-				me.PATCH("/update", h.usersUpdate)
+
+				update := me.Group("/update")
+				{
+					update.PATCH("/", h.usersUpdate)
+					update.PATCH("/setAvatar", h.usersSetAvatar)
+				}
 			}
 
 			users.GET("/byUsername/:username", h.authMiddleware, h.usernameMiddleware, h.usersGetByUsername)
