@@ -45,6 +45,33 @@ func (s *authService) SendRegistrationCode(ctx context.Context, createUserDto dt
 		return ErrUsernameCannotContainSpecialCharacters
 	}
 
+	// Checking users, who are already in the registration process with these emails and usernames
+	prepareEmailExists, err := s.repo.Redis.Default.Get(ctx, redisrepo.PrepareUserEmailKey(createUserDto.Email)).Bool()
+	if err != nil && err != redis.Nil {
+		s.logger.Sugar().Errorf("failed to get prepare user email(%s) from redis: %s", createUserDto.Email, err.Error())
+		return ErrInternal
+	}
+	if prepareEmailExists {
+		return ErrUserWithEmailAlreadyExists
+	}
+
+	prepareUsernameExists, err := s.repo.Redis.Default.Get(ctx, redisrepo.PrepareUsernameKey(createUserDto.Username)).Bool()
+	if err != nil && err != redis.Nil {
+		s.logger.Sugar().Errorf("failed to get prepare user username(%s) from redis: %s", createUserDto.Username, err.Error())
+		return ErrInternal
+	}
+	if prepareUsernameExists {
+		return ErrUserWithUsernameAlreadyExists
+	}
+
+	user, err := s.repo.Postgres.User.FindByEmailOrUsername(ctx, createUserDto.Email, createUserDto.Username)
+	if err != nil && err != pgx.ErrNoRows {
+		return err
+	}
+	if user != nil {
+		return ErrUserAlreadyExists
+	}
+
 	// Trying to generate unique registration code
 	code := 0
 	maxAttempts := 10
@@ -65,6 +92,14 @@ func (s *authService) SendRegistrationCode(ctx context.Context, createUserDto dt
 
 	if err := s.repo.Redis.Default.SetJSON(ctx, redisrepo.TempRegistrationCodeKey(code), createUserDto, time.Hour * 3); err != nil {
 		s.logger.Sugar().Errorf("failed to set temporary user in redis: %s", err.Error())
+		return ErrInternal
+	}
+	if err := s.repo.Redis.Default.Set(ctx, redisrepo.PrepareUserEmailKey(createUserDto.Email), true, time.Hour * 3); err != nil {
+		s.logger.Sugar().Errorf("failed to set prepare user email(%s): %s", createUserDto.Email, err.Error())
+		return ErrInternal
+	}
+	if err := s.repo.Redis.Default.Set(ctx, redisrepo.PrepareUsernameKey(createUserDto.Username), true, time.Hour * 3); err != nil {
+		s.logger.Sugar().Errorf("failed to set prepare user username(%s): %s", createUserDto.Username, err.Error())
 		return ErrInternal
 	}
 
@@ -137,6 +172,14 @@ func (s *authService) VerifyRegistrationCodeAndCreateUser(ctx context.Context, c
 	if err != nil {
 		s.logger.Sugar().Fatalf("failed to generate jwt pair: %s", err.Error())
 		return nil, nil, ErrInternal
+	}
+
+	if err := s.repo.Redis.Default.Del(
+		ctx,
+		redisrepo.PrepareUserEmailKey(createdUser.Email),
+		redisrepo.PrepareUsernameKey(createdUser.Username),
+	).Err(); err != nil {
+		s.logger.Sugar().Errorf("failed to delete user(%s) prepare keys from redis: %s", createdUser.ID, err.Error())
 	}
 
 	user, err := s.userService.FindByUsername(ctx, createdUser.Username)

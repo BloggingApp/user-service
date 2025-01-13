@@ -15,4 +15,6 @@ var (
 	ErrCooldown = errors.New("cooldown")
 	ErrFieldsNotAllowedToUpdate = errors.New("these fields are not allowed to be updated")
 	ErrUserWithUsernameAlreadyExists = errors.New("user with this username is already exists")
+	ErrUserWithEmailAlreadyExists = errors.New("user with this email is already exists")
+	ErrUserAlreadyExists = errors.New("user with this email or username is already exists")
 )

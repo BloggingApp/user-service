@@ -11,6 +11,8 @@ const (
 	USER_SUBSCRIBERS_KEY = "user-subscribers:%s:%d:%d" // <userID>:<limit>:<offset>
 	USER_SUBSCRIPTIONS_KEY = "user-subscriptions:%s:%d:%d" // <userID>:<limit>:<offset>
 	IS_SUBSCRIBED_KEY = "%s-is-subscribed-on:%s" // <subID>:<userID>
+	PREPARE_USERNAME_KEY = "%s-prepare-for-registration" // <username>
+	PREPARE_USER_EMAIL_KEY = "%s-prepare-for-registration" // <email>
 )
 
 func UserKey(userID string) string {
@@ -43,4 +45,12 @@ func UserSubscriptionsKey(userID string, limit int, offset int) string {
 
 func IsSubscribedKey(subID string, userID string) string {
 	return fmt.Sprintf(IS_SUBSCRIBED_KEY, subID, userID)
+}
+
+func PrepareUsernameKey(username string) string {
+	return fmt.Sprintf(PREPARE_USERNAME_KEY, username)
+}
+
+func PrepareUserEmailKey(email string) string {
+	return fmt.Sprintf(PREPARE_USER_EMAIL_KEY, email)
 }
