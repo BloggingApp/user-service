@@ -338,6 +338,21 @@ func (s *userService) SetAvatar(ctx context.Context, user model.FullUser, fileHe
 	uploadPath := "public/user-avatars/"
 	filePath := uploadPath + user.ID.String() + ext
 
+	// Remove user previous avatar
+	files, err := filepath.Glob(filepath.Join(uploadPath, user.ID.String() + ".*"))
+	if err != nil {
+		s.logger.Sugar().Errorf("failed to glob files: %s", err.Error())
+		return ErrInternal
+	}
+
+	for _, file := range files {
+		if err := os.Remove(file); err != nil {
+			s.logger.Sugar().Errorf("failed to remove user(%s) previous avatar file: %s", user.ID.String(), err.Error())
+			return ErrInternal
+		}
+	}
+
+	// Create new avatar
 	out, err := os.Create(filePath)
 	if err != nil {
 		s.logger.Sugar().Errorf("failed to create user(%s) avatar file: %s", user.ID, err.Error())
