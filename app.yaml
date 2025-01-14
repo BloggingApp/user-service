@@ -1,2 +1,5 @@
 app:
-  port: ":8080"
+  port: "8080"
+
+client:
+  origin: "http://localhost:5173"
