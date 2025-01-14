@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -292,6 +293,11 @@ func (s *userService) Update(ctx context.Context, user model.FullUser, updates m
 		}
 	}
 
+	// Publish RabbitMQ event to update user info cache in other microservices
+	if err := s.publishUserInfoUpdated(user.ID, updates); err != nil {
+		return err
+	}
+
 	// Clear cache
 	if err := s.repo.Redis.Del(
 		ctx,
@@ -372,6 +378,10 @@ func (s *userService) SetAvatar(ctx context.Context, user model.FullUser, fileHe
 		s.logger.Sugar().Errorf("failed to update user(%s) avatar: %s", user.ID.String(), err.Error())
 		return ErrInternal
 	}
+	// Publish RabbitMQ event to update user info cache in other microservices
+	if err := s.publishUserInfoUpdated(user.ID, updates); err != nil {
+		return err
+	}
 
 	if err := s.repo.Redis.Default.Del(
 		ctx,
@@ -379,6 +389,22 @@ func (s *userService) SetAvatar(ctx context.Context, user model.FullUser, fileHe
 		redisrepo.UserByUsernameKey(user.Username),
 	).Err(); err != nil {
 		s.logger.Sugar().Errorf("failed to clear cache after user(%s) avatar update: %s", user.ID.String(), err.Error())
+	}
+
+	return nil
+}
+
+func (s *userService) publishUserInfoUpdated(userID uuid.UUID, updates map[string]interface{}) error {
+	updates["user_id"] = userID.String()
+
+	bytes, err := json.Marshal(updates)
+	if err != nil {
+		s.logger.Sugar().Errorf("failed to marshal user(%s) updates to json: %s", userID.String(), err.Error())
+		return ErrInternal
+	}
+	if err := s.rabbitmq.Publish(rabbitmq.USER_INFO_UPDATED_QUEUE, bytes); err != nil {
+		s.logger.Sugar().Errorf("failed to publish rabbitmq event to queue(%s): %s", rabbitmq.USER_INFO_UPDATED_QUEUE, err.Error())
+		return ErrInternal
 	}
 
 	return nil
