@@ -12,7 +12,7 @@ type User struct {
 	Username        string    `json:"username"`
 	PasswordHash    string    `json:"password_hash"`
 	DisplayName     *string   `json:"display_name"`
-	AvatarHash      *string   `json:"avatar_hash"`
+	AvatarURL       *string   `json:"avatar_url"`
 	Bio             *string   `json:"bio"`
 	Role            string    `json:"role"`
 	Subscribers     int64     `json:"subscribers"`
@@ -26,7 +26,7 @@ type FullUser struct {
 	Username     string              `json:"username"`
 	PasswordHash string              `json:"password_hash"`
 	DisplayName  *string             `json:"display_name"`
-	AvatarHash   *string             `json:"avatar_hash"`
+	AvatarURL    *string             `json:"avatar_url"`
 	Bio          *string             `json:"bio"`
 	Role         string              `json:"role"`
 	Subscribers  int64               `json:"subscribers"`
@@ -40,7 +40,7 @@ type FullUserWithoutPasswordHash struct {
 	Email        string              `json:"email"`
 	Username     string              `json:"username"`
 	DisplayName  *string             `json:"display_name"`
-	AvatarHash   *string             `json:"avatar_hash"`
+	AvatarURL    *string             `json:"avatar_url"`
 	Bio          *string             `json:"bio"`
 	Role         string              `json:"role"`
 	Subscribers  int64               `json:"subscribers"`
@@ -55,7 +55,7 @@ func FullUserWithoutPasswordHashFromFullUser(fullUser FullUser) FullUserWithoutP
 		Email: fullUser.Email,
 		Username: fullUser.Username,
 		DisplayName: fullUser.DisplayName,
-		AvatarHash: fullUser.AvatarHash,
+		AvatarURL: fullUser.AvatarURL,
 		Bio: fullUser.Bio,
 		Role: fullUser.Role,
 		Subscribers: fullUser.Subscribers,

@@ -11,7 +11,7 @@ type GetUserDto struct {
 	ID          uuid.UUID           `json:"id"`
 	Username    string              `json:"username"`
 	DisplayName *string             `json:"display_name"`
-	AvatarHash  *string             `json:"avatar_hash"`
+	AvatarURL   *string             `json:"avatar_url"`
 	Bio         *string             `json:"bio"`
 	Role        string              `json:"role"`
 	Subscribers int64               `json:"subscribers"`
@@ -25,7 +25,7 @@ func GetUserDtoFromFullUser(fullUser model.FullUser) *GetUserDto {
 		ID: fullUser.ID,
 		Username: fullUser.Username,
 		DisplayName: fullUser.DisplayName,
-		AvatarHash: fullUser.AvatarHash,
+		AvatarURL: fullUser.AvatarURL,
 		Bio: fullUser.Bio,
 		Role: fullUser.Role,
 		Subscribers: fullUser.Subscribers,
