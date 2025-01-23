@@ -282,6 +282,18 @@ func (r *userRepo) FindByEmailOrUsername(ctx context.Context, email string, user
 }
 
 func (r *userRepo) UpdateByID(ctx context.Context, id uuid.UUID, updates map[string]interface{}) error {
+	allowedFields := []string{"username", "display_name", "bio"}
+	allowedFieldsSet := make(map[string]struct{}, len(allowedFields))
+	for _, field := range allowedFields {
+		allowedFieldsSet[field] = struct{}{}
+	}
+
+	for field := range updates {
+		if _, ok := allowedFieldsSet[field]; !ok {
+			delete(updates, field)
+		}
+	}
+
 	if len(updates) == 0 {
 		return nil
 	}

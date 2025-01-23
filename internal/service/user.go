@@ -271,16 +271,8 @@ func maximumLimit(limit *int) {
 }
 
 func (s *userService) Update(ctx context.Context, user model.FullUser, updates map[string]interface{}) error {
-	allowedFields := []string{"username", "display_name", "bio"}
-	allowedFieldsSet := make(map[string]struct{}, len(allowedFields))
-	for _, field := range allowedFields {
-		allowedFieldsSet[field] = struct{}{}
-	}
-
-	for field := range updates {
-		if _, ok := allowedFieldsSet[field]; !ok {
-			return ErrFieldsNotAllowedToUpdate
-		}
+	if len(updates) == 0 {
+		return nil
 	}
 
 	if username, ok := updates["username"]; ok {
