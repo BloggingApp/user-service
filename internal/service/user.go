@@ -20,6 +20,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/redis/go-redis/v9"
+	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
 
@@ -372,7 +373,7 @@ func (s *userService) SetAvatar(ctx context.Context, user model.FullUser, fileHe
 	}
 
 	updates := map[string]interface{}{
-		"avatar_hash": "/" + filePath,
+		"avatar_url": viper.GetString("app.url") + "/" + filePath,
 	}
 	if err := s.repo.Postgres.User.UpdateByID(ctx, user.ID, updates); err != nil {
 		s.logger.Sugar().Errorf("failed to update user(%s) avatar: %s", user.ID.String(), err.Error())
