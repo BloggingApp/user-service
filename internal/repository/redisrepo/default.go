@@ -41,6 +41,10 @@ func Get[T any](r Default, ctx context.Context, key string) (*T, error) {
 		return nil, err
 	}
 
+	if value == "null" {
+		return nil, nil
+	}
+
 	var result T
 	if err := json.Unmarshal([]byte(value), &result); err != nil {
 		return nil, err
@@ -53,6 +57,10 @@ func GetMany[T any](r Default, ctx context.Context, key string) ([]*T, error) {
 	value, err := r.Get(ctx, key).Result()
 	if err != nil {
 		return nil, err
+	}
+
+	if value == "null" {
+		return nil, nil
 	}
 
 	var result []*T

@@ -51,13 +51,13 @@ func (h *Handler) InitRoutes() *gin.Engine {
 			{
 				me.Use(h.authMiddleware)
 
-				me.GET("/", h.usersMe)
+				me.GET("", h.usersMe)
 				me.GET("/subscribers", h.usersGetSubscribers)
 				me.GET("/subscriptions", h.usersGetSubscriptions)
 
 				update := me.Group("/update")
 				{
-					update.PATCH("/", h.usersUpdate)
+					update.PATCH("", h.usersUpdate)
 					update.PATCH("/setAvatar", h.usersSetAvatar)
 				}
 			}
