@@ -4,3 +4,6 @@ app:
 
 client:
   origin: "http://localhost:5173"
+
+cdn:
+  origin: "http://localhost:4400"

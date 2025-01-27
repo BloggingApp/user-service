@@ -1,12 +1,12 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
 	"mime/multipart"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -28,6 +28,7 @@ type userService struct {
 	logger *zap.Logger
 	repo *repository.Repository
 	rabbitmq *rabbitmq.MQConn
+	httpClient *http.Client
 }
 
 const (
@@ -45,6 +46,7 @@ func newUserService(logger *zap.Logger, repo *repository.Repository, rabbitmq *r
 		logger: logger,
 		repo: repo,
 		rabbitmq: rabbitmq,
+		httpClient: &http.Client{},
 	}
 }
 
@@ -334,38 +336,16 @@ func (s *userService) SetAvatar(ctx context.Context, user model.FullUser, fileHe
 		return ErrFileMustHaveValidExtension
 	}
 
-	uploadPath := "public/user-avatars/"
-	filePath := uploadPath + user.ID.String() + ext
+	uploadPath := "user-avatars/" + user.ID.String()
 
-	// Remove user previous avatar
-	files, err := filepath.Glob(filepath.Join(uploadPath, user.ID.String() + ".*"))
+	// Upload avatar to BloggingApp's CDN
+	returnedURL, err := s.uploadAvatarToCDN(uploadPath, file, fileHeader)
 	if err != nil {
-		s.logger.Sugar().Errorf("failed to glob files: %s", err.Error())
-		return ErrInternal
-	}
-
-	for _, file := range files {
-		if err := os.Remove(file); err != nil {
-			s.logger.Sugar().Errorf("failed to remove user(%s) previous avatar file: %s", user.ID.String(), err.Error())
-			return ErrInternal
-		}
-	}
-
-	// Create new avatar
-	out, err := os.Create(filePath)
-	if err != nil {
-		s.logger.Sugar().Errorf("failed to create user(%s) avatar file: %s", user.ID, err.Error())
-		return ErrInternal
-	}
-	defer out.Close()
-
-	if _, err := io.Copy(out, file); err != nil {
-		s.logger.Sugar().Errorf("failed to copy user(%s) avatar file: %s", user.ID.String(), err.Error())
-		return ErrInternal
+		return err
 	}
 
 	updates := map[string]interface{}{
-		"avatar_url": viper.GetString("app.url") + "/" + filePath,
+		"avatar_url": returnedURL,
 	}
 	if err := s.repo.Postgres.User.UpdateByID(ctx, user.ID, updates); err != nil {
 		s.logger.Sugar().Errorf("failed to update user(%s) avatar: %s", user.ID.String(), err.Error())
@@ -385,6 +365,70 @@ func (s *userService) SetAvatar(ctx context.Context, user model.FullUser, fileHe
 	}
 
 	return nil
+}
+
+func (s *userService) uploadAvatarToCDN(path string, file multipart.File, fileHeader *multipart.FileHeader) (string, error) {
+	endpoint := "/upload"
+	url := viper.GetString("cdn.origin") + endpoint
+
+	var requestBody bytes.Buffer
+	writer := multipart.NewWriter(&requestBody)
+	defer writer.Close()
+
+	fileWriter, err := writer.CreateFormFile("file", fileHeader.Filename)
+	if err != nil {
+		s.logger.Sugar().Errorf("failed to create file part for CDN request: %s", err.Error())
+		return "", ErrInternal
+	}
+
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		s.logger.Sugar().Errorf("failed to seek to the start of the file: %s", err.Error())
+		return "", ErrInternal
+	}
+
+	if _, err := io.Copy(fileWriter, file); err != nil {
+		s.logger.Sugar().Errorf("failed to copy file content for CDN request: %s", err.Error())
+		return "", ErrInternal
+	}
+
+	if err := writer.WriteField("path", path); err != nil {
+		s.logger.Sugar().Errorf("failed to write path field for CDN request: %s", err.Error())
+		return "", ErrInternal
+	}
+
+	req, err := http.NewRequest(http.MethodPost, url, &requestBody)
+	if err != nil {
+		s.logger.Sugar().Errorf("failed to create CDN request: %s", err.Error())
+		return "", ErrInternal
+	}
+
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Add("Type", "IMAGE")
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		s.logger.Sugar().Errorf("failed to do CDN request: %s", err.Error())
+		return "", ErrInternal
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		s.logger.Sugar().Errorf("failed to read response body from CDN: %s", err.Error())
+		return "", ErrInternal
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		var bodyJSON map[string]interface{}
+        if err := json.Unmarshal(body, &bodyJSON); err != nil {
+            s.logger.Sugar().Errorf("failed to decode error response from CDN: %s", err.Error())
+        } else {
+            s.logger.Sugar().Errorf("ERROR from CDN endpoint(%s), details: %s", endpoint, bodyJSON["details"])
+        }
+        return "", ErrFailedToUploadAvatarToCDN
+	}
+
+	return string(body), nil
 }
 
 func (s *userService) publishUserInfoUpdated(userID uuid.UUID, updates map[string]interface{}) error {
