@@ -8,7 +8,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/BloggingApp/user-service/internal/dto"
@@ -17,6 +16,7 @@ import (
 	"github.com/BloggingApp/user-service/internal/repository"
 	"github.com/BloggingApp/user-service/internal/repository/redisrepo"
 	"github.com/google/uuid"
+	"github.com/h2non/filetype"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/redis/go-redis/v9"
@@ -323,13 +323,9 @@ func (s *userService) SetAvatar(ctx context.Context, user model.FullUser, fileHe
 		return err
 	}
 
-	if _, err := file.Seek(0, io.SeekStart); err != nil {
-        return err
-    }
-
-	if !strings.HasPrefix(http.DetectContentType(buff), "image/") {
-        return ErrFileMustBeImage
-    }
+	if !filetype.IsImage(buff) {
+		return ErrFileMustBeImage
+	}
 
 	ext := filepath.Ext(fileHeader.Filename)
 	if ext == "" {
@@ -373,7 +369,6 @@ func (s *userService) uploadAvatarToCDN(path string, file multipart.File, fileHe
 
 	var requestBody bytes.Buffer
 	writer := multipart.NewWriter(&requestBody)
-	defer writer.Close()
 
 	fileWriter, err := writer.CreateFormFile("file", fileHeader.Filename)
 	if err != nil {
@@ -396,6 +391,11 @@ func (s *userService) uploadAvatarToCDN(path string, file multipart.File, fileHe
 		return "", ErrInternal
 	}
 
+	if err := writer.Close(); err != nil {
+		s.logger.Sugar().Errorf("failed to close writer for CDN request: %s", err.Error())
+		return "", ErrInternal
+	}
+
 	req, err := http.NewRequest(http.MethodPost, url, &requestBody)
 	if err != nil {
 		s.logger.Sugar().Errorf("failed to create CDN request: %s", err.Error())
@@ -403,7 +403,7 @@ func (s *userService) uploadAvatarToCDN(path string, file multipart.File, fileHe
 	}
 
 	req.Header.Set("Content-Type", writer.FormDataContentType())
-	req.Header.Add("Type", "IMAGE")
+	req.Header.Add("type", "IMAGE")
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
