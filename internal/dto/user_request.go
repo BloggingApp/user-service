@@ -10,3 +10,7 @@ type SignInDto struct {
 	EmailOrUsername string `json:"email_or_username" binding:"required"`
 	Password        string `json:"password" binding:"required,min=3,max=48"`
 }
+
+type AddSocialLinkRequest struct {
+	Link string `json:"link"`
+}

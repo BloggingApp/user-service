@@ -30,6 +30,7 @@ type User interface {
 	FindUserSubscriptions(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullSub, error)
 	Update(ctx context.Context, user model.FullUser, updates map[string]interface{}) error
 	SetAvatar(ctx context.Context, user model.FullUser, fileHeader *multipart.FileHeader) error
+	AddSocialLink(ctx context.Context, user model.FullUser, link string) error
 }
 
 type Service struct {

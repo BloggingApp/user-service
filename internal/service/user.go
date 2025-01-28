@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/BloggingApp/user-service/internal/dto"
@@ -15,6 +17,7 @@ import (
 	"github.com/BloggingApp/user-service/internal/rabbitmq"
 	"github.com/BloggingApp/user-service/internal/repository"
 	"github.com/BloggingApp/user-service/internal/repository/redisrepo"
+	urlverifier "github.com/davidmytton/url-verifier"
 	"github.com/google/uuid"
 	"github.com/h2non/filetype"
 	"github.com/jackc/pgx/v5"
@@ -39,6 +42,11 @@ const (
 	MAX_SIGNIN_CODE = 999_999
 
 	MAX_SEARCH_LIMIT = 10
+
+	YOUTUBE_LINK_TYPE = "youtube"
+	TIKTOK_LINK_TYPE = "tiktok"
+	GITHUB_LINK_TYPE = "github"
+	TELEGRAM_LINK_TYPE = "telegram"
 )
 
 func newUserService(logger *zap.Logger, repo *repository.Repository, rabbitmq *rabbitmq.MQConn) User {
@@ -445,4 +453,74 @@ func (s *userService) publishUserInfoUpdated(userID uuid.UUID, updates map[strin
 	}
 
 	return nil
+}
+
+func (s *userService) AddSocialLink(ctx context.Context, user model.FullUser, link string) error {
+	if len(user.SocialLinks)+1 > 4 {
+		return ErrMaxSocialLinksAchieved
+	}
+
+	verifier := urlverifier.NewVerifier()
+	verifier.EnableHTTPCheck()
+	res, err := verifier.Verify(link)
+	if err != nil {
+		return err
+	}
+
+	if !res.HTTP.IsSuccess {
+		return fmt.Errorf("the url is reachable with status code: %d", res.HTTP.StatusCode)
+	}
+
+	linkPlatform, err := defineSocialLinkType(link)
+	if err != nil {
+		return err
+	}
+
+	for _, l := range user.SocialLinks {
+		if l.Platform == linkPlatform {
+			return fmt.Errorf("link with type %s has already been set", l.Platform)
+		}
+	}
+
+	if err := s.repo.Postgres.User.AddSocialLink(ctx, model.SocialLink{
+		UserID: user.ID,
+		URL: link,
+		Platform: linkPlatform,
+	}); err != nil {
+		s.logger.Sugar().Errorf("failed to add social link for user(%s): %s", user.ID.String(), err.Error())
+		return ErrInternal
+	}
+
+	if err := s.repo.Redis.Default.Del(
+		ctx,
+		redisrepo.UserByUsernameKey(user.Username),
+		redisrepo.UserKey(user.ID.String()),
+	).Err(); err != nil {
+		s.logger.Sugar().Errorf("failed to delete user(%s) cache: %s", user.ID.String(), err.Error())
+		return ErrInternal
+	}
+
+	return nil
+}
+
+func defineSocialLinkType(link string) (string, error) {
+	types := map[string]string{
+		"https://youtube.com/": YOUTUBE_LINK_TYPE,
+		"https://tiktok.com/": TIKTOK_LINK_TYPE,
+		"https://github.com/": GITHUB_LINK_TYPE,
+		"https://t.me/": TELEGRAM_LINK_TYPE,
+	}
+
+	typ := ""
+	for uri, t := range types {
+		if strings.HasPrefix(link, uri) {
+			typ = t
+		}
+	}
+
+	if typ == "" {
+		return "", ErrLinkHasInvalidType
+	}
+
+	return typ, nil
 }

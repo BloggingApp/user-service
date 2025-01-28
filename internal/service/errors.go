@@ -20,4 +20,6 @@ var (
 	ErrFileMustBeImage = errors.New("file must be image")
 	ErrFileMustHaveValidExtension = errors.New("file must have a valid extension")
 	ErrFailedToUploadAvatarToCDN = errors.New("failed to upload avatar to cdn")
+	ErrMaxSocialLinksAchieved = errors.New("maximum count of social links achieved")
+	ErrLinkHasInvalidType = errors.New("the link has invalid type")
 )

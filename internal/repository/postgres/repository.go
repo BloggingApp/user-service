@@ -21,6 +21,8 @@ type User interface {
 	FindUserSubscriptions(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullSub, error)
 	ExistsWithID(ctx context.Context, id uuid.UUID) (bool, error)
 	ExistsWithUsername(ctx context.Context, username string) (bool, error)
+	FindUserSocialLinks(ctx context.Context, userID uuid.UUID) ([]*model.SocialLink, error)
+	AddSocialLink(ctx context.Context, link model.SocialLink) error
 }
 
 type PostgresRepository struct {

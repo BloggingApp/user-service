@@ -117,7 +117,7 @@ func (r *userRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.FullUser,
 			user.SocialLinks = append(user.SocialLinks, &model.SocialLink{
 				UserID: userID,
 				Platform: *socialLinkPlatform,
-				Url: *socialLinkUrl,
+				URL: *socialLinkUrl,
 			})
 		}
 	}
@@ -235,7 +235,7 @@ func (r *userRepo) FindByUsername(ctx context.Context, username string) (*model.
 			user.SocialLinks = append(user.SocialLinks, &model.SocialLink{
 				UserID: userID,
 				Platform: *socialLinkPlatform,
-				Url: *socialLinkUrl,
+				URL: *socialLinkUrl,
 			})
 		}
 	}
@@ -393,7 +393,7 @@ func (r *userRepo) SearchByUsername(ctx context.Context, username string, limit 
 			user.SocialLinks = append(user.SocialLinks, &model.SocialLink{
 				UserID: user.ID,
 				Platform: *socialLinkPlatform,
-				Url: *socialLinkUrl,
+				URL: *socialLinkUrl,
 			})
 		}
 	}
@@ -527,4 +527,45 @@ func (r *userRepo) ExistsWithUsername(ctx context.Context, username string) (boo
 	}
 
 	return exists, nil
+}
+
+func (r *userRepo) FindUserSocialLinks(ctx context.Context, userID uuid.UUID) ([]*model.SocialLink, error) {
+	rows, err := r.db.Query(
+		ctx,
+		`SELECT
+		l.user_id, l.url, l.platform
+		FROM social_links l
+		WHERE l.user_id = $1
+		`,
+		userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var links []*model.SocialLink
+	for rows.Next() {
+		var link model.SocialLink
+		if err := rows.Scan(
+			&link.UserID,
+			&link.URL,
+			&link.Platform,
+		); err != nil {
+			return nil, err
+		}
+
+		links = append(links, &link)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return links, nil
+}
+
+func (r *userRepo) AddSocialLink(ctx context.Context, link model.SocialLink) error {
+	_, err := r.db.Exec(ctx, "INSERT INTO social_links(user_id, url, platform) VALUES($1, $2, $3)", link.UserID, link.URL, link.Platform)
+	return err
 }
