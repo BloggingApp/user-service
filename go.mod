@@ -11,6 +11,7 @@ require (
 	github.com/h2non/filetype v1.1.3
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/joho/godotenv v1.5.1
+	github.com/morf1lo/jwt-pair-manager v1.0.0
 	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/redis/go-redis/v9 v9.7.0
 	github.com/spf13/viper v1.19.0

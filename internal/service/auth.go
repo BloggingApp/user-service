@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"math/rand"
 	"os"
 	"strings"
 	"time"
@@ -12,10 +13,10 @@ import (
 	"github.com/BloggingApp/user-service/internal/rabbitmq"
 	"github.com/BloggingApp/user-service/internal/repository"
 	"github.com/BloggingApp/user-service/internal/repository/redisrepo"
-	"github.com/BloggingApp/user-service/pkg/utils"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	jwtmanager "github.com/morf1lo/jwt-pair-manager"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -35,6 +36,10 @@ func newAuthService(logger *zap.Logger, repo *repository.Repository, rabbitmq *r
 		rabbitmq: rabbitmq,
 		userService: userService,
 	}
+}
+
+func newRandomCode(min int, max int) int {
+	return rand.Intn(max - min) + min
 }
 
 func (s *authService) SendRegistrationCode(ctx context.Context, createUserDto dto.CreateUserDto) error {
@@ -76,7 +81,7 @@ func (s *authService) SendRegistrationCode(ctx context.Context, createUserDto dt
 	code := 0
 	maxAttempts := 10
 	for i := 1; i <= maxAttempts; i++ {
-		code = utils.NewRandomCode(MIN_REGISTRATION_CODE, MAX_REGISTRATION_CODE)
+		code = newRandomCode(MIN_REGISTRATION_CODE, MAX_REGISTRATION_CODE)
 		_, err := redisrepo.Get[dto.CreateUserDto](s.repo.Redis.Default, ctx, redisrepo.TempRegistrationCodeKey(code))
 		if err == redis.Nil {
 			break
@@ -120,7 +125,7 @@ func (s *authService) SendRegistrationCode(ctx context.Context, createUserDto dt
 	return nil
 }
 
-func (s *authService) VerifyRegistrationCodeAndCreateUser(ctx context.Context, code int) (*dto.GetUserDto, *utils.JWTPair, error) {
+func (s *authService) VerifyRegistrationCodeAndCreateUser(ctx context.Context, code int) (*dto.GetUserDto, *jwtmanager.JWTPair, error) {
 	// Verifying if code exists
 	redisKey := redisrepo.TempRegistrationCodeKey(code)
 	userData, err := redisrepo.Get[dto.CreateUserDto](s.repo.Redis.Default, ctx, redisKey)
@@ -155,14 +160,15 @@ func (s *authService) VerifyRegistrationCodeAndCreateUser(ctx context.Context, c
 		return nil, nil, ErrInternal
 	}
 
-	jwtPair, err := utils.GenerateJWTPair(utils.GenerateJWTPairDto{
-		Method: jwt.SigningMethodHS256,
+	jwtPair, err := jwtmanager.GenerateJWTPair(jwtmanager.GenerateJWTPairData{
+		AccessMethod: jwt.SigningMethodHS256,
 		AccessSecret: []byte(os.Getenv("ACCESS_SECRET")),
 		AccessClaims: jwt.MapClaims{
 			"id": createdUser.ID.String(),
 			"role": createdUser.Role,
 		},
 		AccessExpiry: ACCESS_TOKEN_EXPIRY,
+		RefreshMethod: jwt.SigningMethodHS256,
 		RefreshSecret: []byte(os.Getenv("REFRESH_SECRET")),
 		RefreshClaims: jwt.MapClaims{
 			"id": createdUser.ID.String(),
@@ -211,7 +217,7 @@ func (s *authService) SendSignInCode(ctx context.Context, signInDto dto.SignInDt
 	code := 0
 	maxAttempts := 10
 	for i := 1; i <= maxAttempts; i++ {
-		code = utils.NewRandomCode(MIN_SIGNIN_CODE, MAX_SIGNIN_CODE)
+		code = newRandomCode(MIN_SIGNIN_CODE, MAX_SIGNIN_CODE)
 		_, err := redisrepo.Get[model.User](s.repo.Redis.Default, ctx, redisrepo.TempSignInCodeKey(code))
 		if err == redis.Nil {
 			break
@@ -247,7 +253,7 @@ func (s *authService) SendSignInCode(ctx context.Context, signInDto dto.SignInDt
 	return nil
 }
 
-func (s *authService) VerifySignInCodeAndSignIn(ctx context.Context, code int) (*dto.GetUserDto, *utils.JWTPair, error) {
+func (s *authService) VerifySignInCodeAndSignIn(ctx context.Context, code int) (*dto.GetUserDto, *jwtmanager.JWTPair, error) {
 	// Verifying if code exists
 	redisKey := redisrepo.TempSignInCodeKey(code)
 	userData, err := redisrepo.Get[model.User](s.repo.Redis.Default, ctx, redisKey)
@@ -265,14 +271,15 @@ func (s *authService) VerifySignInCodeAndSignIn(ctx context.Context, code int) (
 		return nil, nil, ErrInternal
 	}
 
-	jwtPair, err := utils.GenerateJWTPair(utils.GenerateJWTPairDto{
-		Method: jwt.SigningMethodHS256,
+	jwtPair, err := jwtmanager.GenerateJWTPair(jwtmanager.GenerateJWTPairData{
+		AccessMethod: jwt.SigningMethodHS256,
 		AccessSecret: []byte(os.Getenv("ACCESS_SECRET")),
 		AccessClaims: jwt.MapClaims{
 			"id": userData.ID.String(),
 			"role": userData.Role,
 		},
 		AccessExpiry: ACCESS_TOKEN_EXPIRY,
+		RefreshMethod: jwt.SigningMethodHS256,
 		RefreshSecret: []byte(os.Getenv("REFRESH_SECRET")),
 		RefreshClaims: jwt.MapClaims{
 			"id": userData.ID.String(),
@@ -292,8 +299,8 @@ func (s *authService) VerifySignInCodeAndSignIn(ctx context.Context, code int) (
 	return user, jwtPair, nil
 }
 
-func (s *authService) RefreshTokens(ctx context.Context, refreshToken string) (*utils.JWTPair, error) {
-	decodedToken, err := utils.DecodeJWT(refreshToken, []byte(os.Getenv("REFRESH_SECRET")))
+func (s *authService) RefreshTokens(ctx context.Context, refreshToken string) (*jwtmanager.JWTPair, error) {
+	decodedToken, err := jwtmanager.DecodeJWT(refreshToken, []byte(os.Getenv("REFRESH_SECRET")))
 	if err != nil {
 		return nil, ErrUnauthorized
 	}
@@ -313,8 +320,8 @@ func (s *authService) RefreshTokens(ctx context.Context, refreshToken string) (*
 		return nil, err
 	}
 
-	jwtPair, err := utils.GenerateJWTPair(utils.GenerateJWTPairDto{
-		Method: jwt.SigningMethodHS256,
+	jwtPair, err := jwtmanager.GenerateJWTPair(jwtmanager.GenerateJWTPairData{
+		AccessMethod: jwt.SigningMethodHS256,
 		AccessExpiry: ACCESS_TOKEN_EXPIRY,
 		AccessSecret: []byte(os.Getenv("ACCESS_SECRET")),
 		AccessClaims: jwt.MapClaims{
@@ -322,6 +329,7 @@ func (s *authService) RefreshTokens(ctx context.Context, refreshToken string) (*
 			"role": user.Role,
 			"exp": time.Hour * 3,
 		},
+		RefreshMethod: jwt.SigningMethodHS256,
 		RefreshExpiry: REFRESH_TOKEN_EXPIRY,
 		RefreshSecret: []byte(os.Getenv("REFRESH_SECRET")),
 		RefreshClaims: jwt.MapClaims{
