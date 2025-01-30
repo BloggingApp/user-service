@@ -12,7 +12,7 @@ type SignIn struct {
 }
 
 type AddSocialLinkRequest struct {
-	Link string `json:"link" binding:"required"`
+	URL string `json:"url" binding:"required"`
 }
 
 type DeleteSocialLinkRequest struct {

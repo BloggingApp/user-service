@@ -135,7 +135,7 @@ func (h *Handler) usersAddSocialLink(c *gin.Context) {
 		return
 	}
 
-	if err := h.services.User.AddSocialLink(c.Request.Context(), *user, input.Link); err != nil {
+	if err := h.services.User.AddSocialLink(c.Request.Context(), *user, input.URL); err != nil {
 		c.JSON(http.StatusInternalServerError, dto.NewBasicResponse(false, err.Error()))
 		return
 	}
