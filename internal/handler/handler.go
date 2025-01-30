@@ -59,7 +59,12 @@ func (h *Handler) InitRoutes() *gin.Engine {
 				{
 					update.PATCH("", h.usersUpdate)
 					update.PATCH("/setAvatar", h.usersSetAvatar)
-					update.PUT("/addSocialLink", h.usersAddSocialLink)
+
+					socialLinks := update.Group("/socialLinks")
+					{
+						socialLinks.PUT("", h.usersAddSocialLink)
+						socialLinks.DELETE("", h.usersDeleteSocialLink)
+					}
 				}
 			}
 

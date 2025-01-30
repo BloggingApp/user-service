@@ -8,7 +8,7 @@ import (
 )
 
 func (h *Handler) authSendRegistrationCode(c *gin.Context) {
-	var input dto.CreateUserDto
+	var input dto.CreateUser
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, dto.NewBasicResponse(false, err.Error()))
 		return
@@ -45,7 +45,7 @@ func (h *Handler) authVerifyRegistrationCodeAndCreateUser(c *gin.Context) {
 }
 
 func (h *Handler) authSendSignInCode(c *gin.Context) {
-	var input dto.SignInDto
+	var input dto.SignIn
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, dto.NewBasicResponse(false, err.Error()))
 		return

@@ -14,9 +14,9 @@ import (
 )
 
 type Auth interface {
-	SendRegistrationCode(ctx context.Context, createUserDto dto.CreateUserDto) error
+	SendRegistrationCode(ctx context.Context, createUserDto dto.CreateUser) error
 	VerifyRegistrationCodeAndCreateUser(ctx context.Context, code int) (*dto.GetUserDto, *jwtmanager.JWTPair, error)
-	SendSignInCode(ctx context.Context, signInDto dto.SignInDto) error
+	SendSignInCode(ctx context.Context, signInDto dto.SignIn) error
 	VerifySignInCodeAndSignIn(ctx context.Context, code int) (*dto.GetUserDto, *jwtmanager.JWTPair, error)
 	RefreshTokens(ctx context.Context, refreshToken string) (*jwtmanager.JWTPair, error)
 }
@@ -31,6 +31,7 @@ type User interface {
 	Update(ctx context.Context, user model.FullUser, updates map[string]interface{}) error
 	SetAvatar(ctx context.Context, user model.FullUser, fileHeader *multipart.FileHeader) error
 	AddSocialLink(ctx context.Context, user model.FullUser, link string) error
+	DeleteSocialLink(ctx context.Context, user model.FullUser, platform string) error
 }
 
 type Service struct {

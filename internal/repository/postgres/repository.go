@@ -23,6 +23,7 @@ type User interface {
 	ExistsWithUsername(ctx context.Context, username string) (bool, error)
 	FindUserSocialLinks(ctx context.Context, userID uuid.UUID) ([]*model.SocialLink, error)
 	AddSocialLink(ctx context.Context, link model.SocialLink) error
+	DeleteSocialLink(ctx context.Context, userID uuid.UUID, platform string) error
 }
 
 type PostgresRepository struct {

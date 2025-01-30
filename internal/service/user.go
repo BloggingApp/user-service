@@ -230,6 +230,7 @@ func (s *userService) Subscribe(ctx context.Context, subscriber model.Subscriber
 		return ErrInternal
 	}
 
+	// Delete cache
 	if err := s.repo.Redis.Default.Del(
 		ctx,
 		redisrepo.UserSubscribersKey(subscriber.UserID.String(), MAX_SEARCH_LIMIT, 0),
@@ -302,13 +303,8 @@ func (s *userService) Update(ctx context.Context, user model.FullUser, updates m
 	}
 
 	// Clear cache
-	if err := s.repo.Redis.Del(
-		ctx,
-		redisrepo.UserKey(user.ID.String()),
-		redisrepo.UserByUsernameKey(user.Username),
-	).Err(); err != nil {
-		s.logger.Sugar().Errorf("failed to get user(%s) from redis: %s", user.ID.String(), err.Error())
-		return ErrInternal
+	if err := s.deleteUserInfoCache(ctx, user); err != nil {
+		return err
 	}
 
 	if err := s.repo.Postgres.User.UpdateByID(ctx, user.ID, updates); err != nil {
@@ -360,12 +356,8 @@ func (s *userService) SetAvatar(ctx context.Context, user model.FullUser, fileHe
 		return err
 	}
 
-	if err := s.repo.Redis.Default.Del(
-		ctx,
-		redisrepo.UserKey(user.ID.String()),
-		redisrepo.UserByUsernameKey(user.Username),
-	).Err(); err != nil {
-		s.logger.Sugar().Errorf("failed to clear cache after user(%s) avatar update: %s", user.ID.String(), err.Error())
+	if err := s.deleteUserInfoCache(ctx, user); err != nil {
+		return err
 	}
 
 	return nil
@@ -478,7 +470,7 @@ func (s *userService) AddSocialLink(ctx context.Context, user model.FullUser, li
 
 	for _, l := range user.SocialLinks {
 		if l.Platform == linkPlatform {
-			return fmt.Errorf("link with type %s has already been set", l.Platform)
+			return fmt.Errorf("link with type '%s' has already been set", l.Platform)
 		}
 	}
 
@@ -491,13 +483,8 @@ func (s *userService) AddSocialLink(ctx context.Context, user model.FullUser, li
 		return ErrInternal
 	}
 
-	if err := s.repo.Redis.Default.Del(
-		ctx,
-		redisrepo.UserByUsernameKey(user.Username),
-		redisrepo.UserKey(user.ID.String()),
-	).Err(); err != nil {
-		s.logger.Sugar().Errorf("failed to delete user(%s) cache: %s", user.ID.String(), err.Error())
-		return ErrInternal
+	if err := s.deleteUserInfoCache(ctx, user); err != nil {
+		return err
 	}
 
 	return nil
@@ -523,4 +510,29 @@ func defineSocialLinkType(link string) (string, error) {
 	}
 
 	return typ, nil
+}
+
+func (s *userService) DeleteSocialLink(ctx context.Context, user model.FullUser, platform string) error {
+	if err := s.repo.Postgres.User.DeleteSocialLink(ctx, user.ID, platform); err != nil {
+		s.logger.Sugar().Errorf("failed to delete user(%s) social link(%s): %s", user.ID.String(), platform, err.Error())
+		return err
+	}
+
+	if err := s.deleteUserInfoCache(ctx, user); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *userService) deleteUserInfoCache(ctx context.Context, user model.FullUser) error {
+	if err := s.repo.Redis.Default.Del(
+		ctx,
+		redisrepo.UserByUsernameKey(user.Username),
+		redisrepo.UserKey(user.ID.String()),
+	).Err(); err != nil {
+		s.logger.Sugar().Errorf("failed to delete user(%s) cache: %s", user.ID.String(), err.Error())
+		return ErrInternal
+	}
+	return nil
 }

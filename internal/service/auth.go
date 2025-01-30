@@ -42,7 +42,7 @@ func newRandomCode(min int, max int) int {
 	return rand.Intn(max - min) + min
 }
 
-func (s *authService) SendRegistrationCode(ctx context.Context, createUserDto dto.CreateUserDto) error {
+func (s *authService) SendRegistrationCode(ctx context.Context, createUserDto dto.CreateUser) error {
 	createUserDto.Email = strings.TrimSpace(createUserDto.Email)
 	createUserDto.Username = strings.TrimSpace(strings.ToLower(createUserDto.Username))
 
@@ -82,7 +82,7 @@ func (s *authService) SendRegistrationCode(ctx context.Context, createUserDto dt
 	maxAttempts := 10
 	for i := 1; i <= maxAttempts; i++ {
 		code = newRandomCode(MIN_REGISTRATION_CODE, MAX_REGISTRATION_CODE)
-		_, err := redisrepo.Get[dto.CreateUserDto](s.repo.Redis.Default, ctx, redisrepo.TempRegistrationCodeKey(code))
+		_, err := redisrepo.Get[dto.CreateUser](s.repo.Redis.Default, ctx, redisrepo.TempRegistrationCodeKey(code))
 		if err == redis.Nil {
 			break
 		}
@@ -128,7 +128,7 @@ func (s *authService) SendRegistrationCode(ctx context.Context, createUserDto dt
 func (s *authService) VerifyRegistrationCodeAndCreateUser(ctx context.Context, code int) (*dto.GetUserDto, *jwtmanager.JWTPair, error) {
 	// Verifying if code exists
 	redisKey := redisrepo.TempRegistrationCodeKey(code)
-	userData, err := redisrepo.Get[dto.CreateUserDto](s.repo.Redis.Default, ctx, redisKey)
+	userData, err := redisrepo.Get[dto.CreateUser](s.repo.Redis.Default, ctx, redisKey)
 	if err != nil {
 		if err == redis.Nil {
 			return nil, nil, ErrInvalidCode
@@ -196,7 +196,7 @@ func (s *authService) VerifyRegistrationCodeAndCreateUser(ctx context.Context, c
 	return user, jwtPair, nil
 }
 
-func (s *authService) SendSignInCode(ctx context.Context, signInDto dto.SignInDto) error {
+func (s *authService) SendSignInCode(ctx context.Context, signInDto dto.SignIn) error {
 	signInDto.EmailOrUsername = strings.ToLower(signInDto.EmailOrUsername)
 
 	user, err := s.repo.Postgres.User.FindByEmailOrUsername(ctx, signInDto.EmailOrUsername, signInDto.EmailOrUsername)

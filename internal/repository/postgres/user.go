@@ -569,3 +569,8 @@ func (r *userRepo) AddSocialLink(ctx context.Context, link model.SocialLink) err
 	_, err := r.db.Exec(ctx, "INSERT INTO social_links(user_id, url, platform) VALUES($1, $2, $3)", link.UserID, link.URL, link.Platform)
 	return err
 }
+
+func (r *userRepo) DeleteSocialLink(ctx context.Context, userID uuid.UUID, platform string) error {
+	_, err := r.db.Exec(ctx, "DELETE FROM social_links l WHERE l.user_id = $1 AND l.platform = $2", userID, platform)
+	return err
+}
