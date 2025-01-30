@@ -8,15 +8,16 @@ import (
 	"github.com/BloggingApp/user-service/internal/model"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const MAX_LIMIT = 50
 
 type userRepo struct {
-	db *pgx.Conn
+	db *pgxpool.Pool
 }
 
-func newUserRepo(db *pgx.Conn) User {
+func newUserRepo(db *pgxpool.Pool) User {
 	return &userRepo{
 		db: db,
 	}

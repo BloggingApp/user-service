@@ -5,7 +5,7 @@ import (
 
 	"github.com/BloggingApp/user-service/internal/model"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type User interface {
@@ -30,7 +30,7 @@ type PostgresRepository struct {
 	User
 }
 
-func New(db *pgx.Conn) *PostgresRepository {
+func New(db *pgxpool.Pool) *PostgresRepository {
 	return &PostgresRepository{
 		User: newUserRepo(db),
 	}
