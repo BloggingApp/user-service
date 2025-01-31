@@ -32,6 +32,7 @@ type userService struct {
 	repo *repository.Repository
 	rabbitmq *rabbitmq.MQConn
 	httpClient *http.Client
+	socialLinkTypes map[string]string
 }
 
 const (
@@ -43,7 +44,6 @@ const (
 
 	MAX_SEARCH_LIMIT = 10
 
-	YOUTUBE_LINK_TYPE = "youtube"
 	TIKTOK_LINK_TYPE = "tiktok"
 	GITHUB_LINK_TYPE = "github"
 	TELEGRAM_LINK_TYPE = "telegram"
@@ -55,6 +55,11 @@ func newUserService(logger *zap.Logger, repo *repository.Repository, rabbitmq *r
 		repo: repo,
 		rabbitmq: rabbitmq,
 		httpClient: &http.Client{},
+		socialLinkTypes: map[string]string{
+			"https://tiktok.com/": TIKTOK_LINK_TYPE,
+			"https://github.com/": GITHUB_LINK_TYPE,
+			"https://t.me/": TELEGRAM_LINK_TYPE,
+		},
 	}
 }
 
@@ -453,17 +458,18 @@ func (s *userService) AddSocialLink(ctx context.Context, user model.FullUser, li
 	}
 
 	verifier := urlverifier.NewVerifier()
-	verifier.EnableHTTPCheck()
-	res, err := verifier.Verify(link)
+	verifier.DisableHTTPCheck()
+	verifier.DisallowHTTPCheckInternal()
+	result, err := verifier.Verify(link)
 	if err != nil {
 		return err
 	}
 
-	if !res.HTTP.IsSuccess {
-		return fmt.Errorf("the url is reachable with status code: %d", res.HTTP.StatusCode)
+	if !result.HTTP.IsSuccess {
+		return fmt.Errorf("the url is reachable with status code: %d", result.HTTP.StatusCode)
 	}
 
-	linkPlatform, err := defineSocialLinkType(link)
+	linkPlatform, err := s.defineSocialLinkType(link)
 	if err != nil {
 		return err
 	}
@@ -490,16 +496,9 @@ func (s *userService) AddSocialLink(ctx context.Context, user model.FullUser, li
 	return nil
 }
 
-func defineSocialLinkType(link string) (string, error) {
-	types := map[string]string{
-		"https://youtube.com/": YOUTUBE_LINK_TYPE,
-		"https://tiktok.com/": TIKTOK_LINK_TYPE,
-		"https://github.com/": GITHUB_LINK_TYPE,
-		"https://t.me/": TELEGRAM_LINK_TYPE,
-	}
-
+func (s *userService) defineSocialLinkType(link string) (string, error) {
 	typ := ""
-	for uri, t := range types {
+	for uri, t := range s.socialLinkTypes {
 		if strings.HasPrefix(link, uri) {
 			typ = t
 		}
