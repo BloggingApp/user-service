@@ -1,12 +1,20 @@
 package dto
 
-type CreateUserDto struct {
+type CreateUser struct {
 	Email    string `json:"email" binding:"required,email"`
 	Username string `json:"username" binding:"required,min=3,max=20"`
 	Password string `json:"password" binding:"required,min=8,max=48"`
 }
 
-type SignInDto struct {
+type SignIn struct {
 	EmailOrUsername string `json:"email_or_username" binding:"required"`
 	Password        string `json:"password" binding:"required,min=3,max=48"`
+}
+
+type AddSocialLinkRequest struct {
+	URL string `json:"url" binding:"required"`
+}
+
+type DeleteSocialLinkRequest struct {
+	Platform string `json:"platform" binding:"required"`
 }

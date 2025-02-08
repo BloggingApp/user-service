@@ -6,10 +6,10 @@ import (
 
 	"github.com/BloggingApp/user-service/internal/model"
 	"github.com/BloggingApp/user-service/internal/service"
-	"github.com/BloggingApp/user-service/pkg/utils"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	jwtmanager "github.com/morf1lo/jwt-pair-manager"
 	"github.com/spf13/viper"
 )
 
@@ -51,14 +51,20 @@ func (h *Handler) InitRoutes() *gin.Engine {
 			{
 				me.Use(h.authMiddleware)
 
-				me.GET("/", h.usersMe)
+				me.GET("", h.usersMe)
 				me.GET("/subscribers", h.usersGetSubscribers)
 				me.GET("/subscriptions", h.usersGetSubscriptions)
 
 				update := me.Group("/update")
 				{
-					update.PATCH("/", h.usersUpdate)
+					update.PATCH("", h.usersUpdate)
 					update.PATCH("/setAvatar", h.usersSetAvatar)
+
+					socialLinks := update.Group("/socialLinks")
+					{
+						socialLinks.PUT("", h.usersAddSocialLink)
+						socialLinks.DELETE("", h.usersDeleteSocialLink)
+					}
 				}
 			}
 
@@ -71,7 +77,7 @@ func (h *Handler) InitRoutes() *gin.Engine {
 }
 
 func (h *Handler) getUserDataFromAccessTokenClaims(ctx context.Context, accessToken string) (*model.FullUser, error) {
-	claims, err := utils.DecodeJWT(accessToken, []byte(os.Getenv("ACCESS_SECRET")))
+	claims, err := jwtmanager.DecodeJWT(accessToken, []byte(os.Getenv("ACCESS_SECRET")))
 	if err != nil {
 		return nil, err
 	}

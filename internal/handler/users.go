@@ -125,3 +125,37 @@ func (h *Handler) usersSetAvatar(c *gin.Context) {
 
 	c.JSON(http.StatusOK, dto.NewBasicResponse(true, ""))
 }
+
+func (h *Handler) usersAddSocialLink(c *gin.Context) {
+	user := h.getUser(c)
+
+	var input dto.AddSocialLinkRequest
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, dto.NewBasicResponse(false, err.Error()))
+		return
+	}
+
+	if err := h.services.User.AddSocialLink(c.Request.Context(), *user, input.URL); err != nil {
+		c.JSON(http.StatusInternalServerError, dto.NewBasicResponse(false, err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.NewBasicResponse(true, ""))
+}
+
+func (h *Handler) usersDeleteSocialLink(c *gin.Context) {
+	user := h.getUser(c)
+
+	var input dto.DeleteSocialLinkRequest
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, dto.NewBasicResponse(false, err.Error()))
+		return
+	}
+
+	if err := h.services.User.DeleteSocialLink(c.Request.Context(), *user, input.Platform); err != nil {
+		c.JSON(http.StatusInternalServerError, dto.NewBasicResponse(false, err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.NewBasicResponse(true, ""))
+}

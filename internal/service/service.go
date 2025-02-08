@@ -8,17 +8,17 @@ import (
 	"github.com/BloggingApp/user-service/internal/model"
 	"github.com/BloggingApp/user-service/internal/rabbitmq"
 	"github.com/BloggingApp/user-service/internal/repository"
-	"github.com/BloggingApp/user-service/pkg/utils"
 	"github.com/google/uuid"
+	jwtmanager "github.com/morf1lo/jwt-pair-manager"
 	"go.uber.org/zap"
 )
 
 type Auth interface {
-	SendRegistrationCode(ctx context.Context, createUserDto dto.CreateUserDto) error
-	VerifyRegistrationCodeAndCreateUser(ctx context.Context, code int) (*dto.GetUserDto, *utils.JWTPair, error)
-	SendSignInCode(ctx context.Context, signInDto dto.SignInDto) error
-	VerifySignInCodeAndSignIn(ctx context.Context, code int) (*dto.GetUserDto, *utils.JWTPair, error)
-	RefreshTokens(ctx context.Context, refreshToken string) (*utils.JWTPair, error)
+	SendRegistrationCode(ctx context.Context, createUserDto dto.CreateUser) error
+	VerifyRegistrationCodeAndCreateUser(ctx context.Context, code int) (*dto.GetUserDto, *jwtmanager.JWTPair, error)
+	SendSignInCode(ctx context.Context, signInDto dto.SignIn) error
+	VerifySignInCodeAndSignIn(ctx context.Context, code int) (*dto.GetUserDto, *jwtmanager.JWTPair, error)
+	RefreshTokens(ctx context.Context, refreshToken string) (*jwtmanager.JWTPair, error)
 }
 
 type User interface {
@@ -30,6 +30,8 @@ type User interface {
 	FindUserSubscriptions(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullSub, error)
 	Update(ctx context.Context, user model.FullUser, updates map[string]interface{}) error
 	SetAvatar(ctx context.Context, user model.FullUser, fileHeader *multipart.FileHeader) error
+	AddSocialLink(ctx context.Context, user model.FullUser, link string) error
+	DeleteSocialLink(ctx context.Context, user model.FullUser, platform string) error
 }
 
 type Service struct {

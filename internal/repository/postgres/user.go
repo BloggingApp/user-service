@@ -8,15 +8,16 @@ import (
 	"github.com/BloggingApp/user-service/internal/model"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const MAX_LIMIT = 50
 
 type userRepo struct {
-	db *pgx.Conn
+	db *pgxpool.Pool
 }
 
-func newUserRepo(db *pgx.Conn) User {
+func newUserRepo(db *pgxpool.Pool) User {
 	return &userRepo{
 		db: db,
 	}
@@ -24,19 +25,18 @@ func newUserRepo(db *pgx.Conn) User {
 
 func (r *userRepo) Create(ctx context.Context, user model.User) (*model.User, error) {
 	user.ID = uuid.New()
+	user.AvatarURL = nil
 	user.Role = "user"
 	user.Subscribers = 0
 	user.CreatedAt = time.Now()
 	user.UpdatedAt = time.Now()
 	_, err := r.db.Exec(
 		ctx,
-		"INSERT INTO users(id, email, username, password_hash, display_name, bio, created_at, updated_at) VALUES($1, $2, $3, $4, $5, $6, $7, $8)",
+		"INSERT INTO users(id, email, username, password_hash, created_at, updated_at) VALUES($1, $2, $3, $4, $5, $6)",
 		user.ID,
 		user.Email,
 		user.Username,
 		user.PasswordHash,
-		user.DisplayName,
-		user.Bio,
 		user.CreatedAt,
 		user.UpdatedAt,
 	)
@@ -48,7 +48,7 @@ func (r *userRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.FullUser,
 		ctx,
 		`
 		SELECT
-		u.id, u.email, u.username, u.password_hash, u.display_name, u.avatar_hash, u.bio, u.role, u.subscribers, u.created_at, u.updated_at, sl.platform, sl.url
+		u.id, u.email, u.username, u.password_hash, u.display_name, u.avatar_url, u.bio, u.role, u.subscribers, u.created_at, u.updated_at, sl.platform, sl.url
 		FROM users u
 		LEFT JOIN social_links sl ON u.id = sl.user_id
 		WHERE u.id = $1
@@ -68,7 +68,7 @@ func (r *userRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.FullUser,
 			userUsername string
 			userPasswordHash string
 			userDisplayName *string
-			userAvatarHash *string
+			userAvatarURL *string
 			userBio *string
 			userRole string
 			userSubscribers int64
@@ -83,7 +83,7 @@ func (r *userRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.FullUser,
 			&userUsername,
 			&userPasswordHash,
 			&userDisplayName,
-			&userAvatarHash,
+			&userAvatarURL,
 			&userBio,
 			&userRole,
 			&userSubscribers,
@@ -103,7 +103,7 @@ func (r *userRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.FullUser,
                 Username: userUsername,
 				PasswordHash: userPasswordHash,
                 DisplayName: userDisplayName,
-                AvatarHash: userAvatarHash,
+                AvatarURL: userAvatarURL,
                 Bio: userBio,
                 Role: userRole,
 				Subscribers: userSubscribers,
@@ -118,7 +118,7 @@ func (r *userRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.FullUser,
 			user.SocialLinks = append(user.SocialLinks, &model.SocialLink{
 				UserID: userID,
 				Platform: *socialLinkPlatform,
-				Url: *socialLinkUrl,
+				URL: *socialLinkUrl,
 			})
 		}
 	}
@@ -142,7 +142,7 @@ func (r *userRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.FullUser,
 func (r *userRepo) FindByEmail(ctx context.Context, email string) (*model.User, error) {
 	var user model.User
 	if err := r.db.QueryRow(ctx, `
-	SELECT u.id, u.email, u.username, u.password_hash, u.display_name, u.avatar_hash, u.bio, u.role, u.subscribers, u.created_at, u.updated_at
+	SELECT u.id, u.email, u.username, u.password_hash, u.display_name, u.avatar_url, u.bio, u.role, u.subscribers, u.created_at, u.updated_at
 	FROM users u
 	WHERE u.email = $1
 	`, email).Scan(
@@ -151,7 +151,7 @@ func (r *userRepo) FindByEmail(ctx context.Context, email string) (*model.User, 
 		&user.Username,
 		&user.PasswordHash,
 		&user.DisplayName,
-		&user.AvatarHash,
+		&user.AvatarURL,
 		&user.Bio,
 		&user.Role,
 		&user.Subscribers,
@@ -169,7 +169,7 @@ func (r *userRepo) FindByUsername(ctx context.Context, username string) (*model.
 		ctx,
 		`
 		SELECT
-		u.id, u.email, u.username, u.display_name, u.avatar_hash, u.bio, u.role, u.subscribers, u.created_at, u.updated_at, sl.platform, sl.url
+		u.id, u.email, u.username, u.display_name, u.avatar_url, u.bio, u.role, u.subscribers, u.created_at, u.updated_at, sl.platform, sl.url
 		FROM users u
 		LEFT JOIN social_links sl ON u.id = sl.user_id
 		WHERE u.username = $1
@@ -188,7 +188,7 @@ func (r *userRepo) FindByUsername(ctx context.Context, username string) (*model.
 			userEmail string
 			userUsername string
 			userDisplayName *string
-			userAvatarHash *string
+			userAvatarURL *string
 			userBio *string
 			userRole string
 			userSubscribers int64
@@ -202,7 +202,7 @@ func (r *userRepo) FindByUsername(ctx context.Context, username string) (*model.
 			&userEmail,
 			&userUsername,
 			&userDisplayName,
-			&userAvatarHash,
+			&userAvatarURL,
 			&userBio,
 			&userRole,
 			&userSubscribers,
@@ -221,7 +221,7 @@ func (r *userRepo) FindByUsername(ctx context.Context, username string) (*model.
                 Email: userEmail,
                 Username: userUsername,
                 DisplayName: userDisplayName,
-                AvatarHash: userAvatarHash,
+                AvatarURL: userAvatarURL,
                 Bio: userBio,
                 Role: userRole,
 				Subscribers: userSubscribers,
@@ -236,7 +236,7 @@ func (r *userRepo) FindByUsername(ctx context.Context, username string) (*model.
 			user.SocialLinks = append(user.SocialLinks, &model.SocialLink{
 				UserID: userID,
 				Platform: *socialLinkPlatform,
-				Url: *socialLinkUrl,
+				URL: *socialLinkUrl,
 			})
 		}
 	}
@@ -260,7 +260,7 @@ func (r *userRepo) FindByUsername(ctx context.Context, username string) (*model.
 func (r *userRepo) FindByEmailOrUsername(ctx context.Context, email string, username string) (*model.User, error) {
 	var user model.User
 	if err := r.db.QueryRow(ctx, `
-	SELECT u.id, u.email, u.username, u.password_hash, u.display_name, u.avatar_hash, u.bio, u.role, u.subscribers, u.created_at, u.updated_at
+	SELECT u.id, u.email, u.username, u.password_hash, u.display_name, u.avatar_url, u.bio, u.role, u.subscribers, u.created_at, u.updated_at
 	FROM users u
 	WHERE u.email = $1 OR u.username = $2
 	`, email, username).Scan(
@@ -269,7 +269,7 @@ func (r *userRepo) FindByEmailOrUsername(ctx context.Context, email string, user
 		&user.Username,
 		&user.PasswordHash,
 		&user.DisplayName,
-		&user.AvatarHash,
+		&user.AvatarURL,
 		&user.Bio,
 		&user.Role,
 		&user.Subscribers,
@@ -283,6 +283,18 @@ func (r *userRepo) FindByEmailOrUsername(ctx context.Context, email string, user
 }
 
 func (r *userRepo) UpdateByID(ctx context.Context, id uuid.UUID, updates map[string]interface{}) error {
+	allowedFields := []string{"username", "display_name", "bio", "avatar_url"}
+	allowedFieldsSet := make(map[string]struct{}, len(allowedFields))
+	for _, field := range allowedFields {
+		allowedFieldsSet[field] = struct{}{}
+	}
+
+	for field := range updates {
+		if _, ok := allowedFieldsSet[field]; !ok {
+			delete(updates, field)
+		}
+	}
+
 	if len(updates) == 0 {
 		return nil
 	}
@@ -311,7 +323,7 @@ func (r *userRepo) SearchByUsername(ctx context.Context, username string, limit 
 		ctx,
 		`
 		SELECT
-		u.id, u.email, u.username, u.display_name, u.avatar_hash, u.bio, u.role, u.subscribers, u.created_at, u.updated_at, sl.platform, sl.url
+		u.id, u.email, u.username, u.display_name, u.avatar_url, u.bio, u.role, u.subscribers, u.created_at, u.updated_at, sl.platform, sl.url
 		FROM users u
 		LEFT JOIN social_links sl ON u.id = sl.user_id
 		WHERE u.username LIKE %$1%
@@ -334,7 +346,7 @@ func (r *userRepo) SearchByUsername(ctx context.Context, username string, limit 
 			userEmail string
 			userUsername string
 			userDisplayName *string
-			userAvatarHash *string
+			userAvatarURL *string
 			userBio *string
 			userRole string
 			userSubscribers int64
@@ -348,7 +360,7 @@ func (r *userRepo) SearchByUsername(ctx context.Context, username string, limit 
 			&userEmail,
 			&userUsername,
 			&userDisplayName,
-			&userAvatarHash,
+			&userAvatarURL,
 			&userBio,
 			&userRole,
 			&userSubscribers,
@@ -367,7 +379,7 @@ func (r *userRepo) SearchByUsername(ctx context.Context, username string, limit 
                 Email: userEmail,
                 Username: userUsername,
                 DisplayName: userDisplayName,
-                AvatarHash: userAvatarHash,
+                AvatarURL: userAvatarURL,
                 Bio: userBio,
                 Role: userRole,
 				Subscribers: userSubscribers,
@@ -382,7 +394,7 @@ func (r *userRepo) SearchByUsername(ctx context.Context, username string, limit 
 			user.SocialLinks = append(user.SocialLinks, &model.SocialLink{
 				UserID: user.ID,
 				Platform: *socialLinkPlatform,
-				Url: *socialLinkUrl,
+				URL: *socialLinkUrl,
 			})
 		}
 	}
@@ -411,7 +423,7 @@ func (r *userRepo) FindUserSubscribers(ctx context.Context, id uuid.UUID, limit 
 	rows, err := r.db.Query(
 		ctx,
 		`
-		SELECT s.sub_id, u.username, u.display_name, u.avatar_hash, u.bio
+		SELECT s.sub_id, u.username, u.display_name, u.avatar_url, u.bio
 		FROM subscribers s
 		JOIN users u ON s.sub_id = u.id
 		WHERE s.user_id = $1
@@ -461,7 +473,7 @@ func (r *userRepo) FindUserSubscriptions(ctx context.Context, id uuid.UUID, limi
 	rows, err := r.db.Query(
 		ctx,
 		`
-		SELECT s.sub_id, u.username, u.display_name, u.avatar_hash, u.bio
+		SELECT s.sub_id, u.username, u.display_name, u.avatar_url, u.bio
 		FROM subscribers s
 		JOIN users u ON s.user_id = u.id
 		WHERE s.sub_id = $1
@@ -516,4 +528,50 @@ func (r *userRepo) ExistsWithUsername(ctx context.Context, username string) (boo
 	}
 
 	return exists, nil
+}
+
+func (r *userRepo) FindUserSocialLinks(ctx context.Context, userID uuid.UUID) ([]*model.SocialLink, error) {
+	rows, err := r.db.Query(
+		ctx,
+		`SELECT
+		l.user_id, l.url, l.platform
+		FROM social_links l
+		WHERE l.user_id = $1
+		`,
+		userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var links []*model.SocialLink
+	for rows.Next() {
+		var link model.SocialLink
+		if err := rows.Scan(
+			&link.UserID,
+			&link.URL,
+			&link.Platform,
+		); err != nil {
+			return nil, err
+		}
+
+		links = append(links, &link)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return links, nil
+}
+
+func (r *userRepo) AddSocialLink(ctx context.Context, link model.SocialLink) error {
+	_, err := r.db.Exec(ctx, "INSERT INTO social_links(user_id, url, platform) VALUES($1, $2, $3)", link.UserID, link.URL, link.Platform)
+	return err
+}
+
+func (r *userRepo) DeleteSocialLink(ctx context.Context, userID uuid.UUID, platform string) error {
+	_, err := r.db.Exec(ctx, "DELETE FROM social_links l WHERE l.user_id = $1 AND l.platform = $2", userID, platform)
+	return err
 }
