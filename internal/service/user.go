@@ -375,6 +375,18 @@ func (s *userService) uploadAvatarToCDN(path string, file multipart.File, fileHe
 	var requestBody bytes.Buffer
 	writer := multipart.NewWriter(&requestBody)
 
+	// Writing text fields
+	if err := writer.WriteField("type", "IMAGE"); err != nil {
+		s.logger.Sugar().Errorf("failed to write 'type' field for CDN request: %s", err.Error())
+		return "", ErrInternal
+	}
+
+	if err := writer.WriteField("path", path); err != nil {
+		s.logger.Sugar().Errorf("failed to write 'path' field for CDN request: %s", err.Error())
+		return "", ErrInternal
+	}
+
+	// Writing file
 	fileWriter, err := writer.CreateFormFile("file", fileHeader.Filename)
 	if err != nil {
 		s.logger.Sugar().Errorf("failed to create file part for CDN request: %s", err.Error())
@@ -391,11 +403,7 @@ func (s *userService) uploadAvatarToCDN(path string, file multipart.File, fileHe
 		return "", ErrInternal
 	}
 
-	if err := writer.WriteField("path", path); err != nil {
-		s.logger.Sugar().Errorf("failed to write path field for CDN request: %s", err.Error())
-		return "", ErrInternal
-	}
-
+	// End of request body
 	if err := writer.Close(); err != nil {
 		s.logger.Sugar().Errorf("failed to close writer for CDN request: %s", err.Error())
 		return "", ErrInternal
@@ -408,7 +416,6 @@ func (s *userService) uploadAvatarToCDN(path string, file multipart.File, fileHe
 	}
 
 	req.Header.Set("Content-Type", writer.FormDataContentType())
-	req.Header.Add("type", "IMAGE")
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
@@ -428,7 +435,7 @@ func (s *userService) uploadAvatarToCDN(path string, file multipart.File, fileHe
         if err := json.Unmarshal(body, &bodyJSON); err != nil {
             s.logger.Sugar().Errorf("failed to decode error response from CDN: %s", err.Error())
         } else {
-            s.logger.Sugar().Errorf("ERROR from CDN endpoint(%s), details: %s", endpoint, bodyJSON["details"])
+            s.logger.Sugar().Errorf("ERROR from CDN endpoint(%s), code(%d), details: %s", endpoint, resp.StatusCode, bodyJSON["details"])
         }
         return "", ErrFailedToUploadAvatarToCDN
 	}
