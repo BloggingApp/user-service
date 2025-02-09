@@ -28,7 +28,7 @@ func (h *Handler) InitRoutes() *gin.Engine {
 
 	r.Use(cors.New(cors.Config{
 		AllowOrigins: []string{viper.GetString("client.origin")},
-		AllowMethods: []string{"POST", "GET", "PATCH", "PUT"},
+		AllowMethods: []string{"POST", "GET", "PATCH", "PUT", "DELETE"},
 		AllowCredentials: true,
 	}))
 
