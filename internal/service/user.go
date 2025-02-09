@@ -160,88 +160,88 @@ func (s *userService) convertFullUsersToGetUserDtos(users []*model.FullUser) []*
 	return dtos	
 }
 
-func (s *userService) FindUserSubscribers(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullSub, error) {
+func (s *userService) FindUserFollowers(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullFollower, error) {
 	maximumLimit(&limit)
 
-	subsCache, err := redisrepo.GetMany[model.FullSub](s.repo.Redis.Default, ctx, redisrepo.UserSubscribersKey(id.String(), limit, offset))
+	followersCache, err := redisrepo.GetMany[model.FullFollower](s.repo.Redis.Default, ctx, redisrepo.UserFollowersKey(id.String(), limit, offset))
 	if err == nil {
-		return subsCache, nil
+		return followersCache, nil
 	}
 	if err != redis.Nil {
-		s.logger.Sugar().Errorf("failed to get subscribers from redis: %s", err.Error())
+		s.logger.Sugar().Errorf("failed to get followers from redis: %s", err.Error())
 		return nil, ErrInternal
 	}
 
-	subs, err := s.repo.Postgres.User.FindUserSubscribers(ctx, id, limit, offset)
+	followers, err := s.repo.Postgres.User.FindUserFollowers(ctx, id, limit, offset)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, pgx.ErrNoRows
 		}
 
-		s.logger.Sugar().Errorf("failed to get user(%s) subscribers from postgres: %s", id.String(), err.Error())
+		s.logger.Sugar().Errorf("failed to get user(%s) followers from postgres: %s", id.String(), err.Error())
 		return nil, ErrInternal
 	}
 
-	if err := s.repo.Redis.Default.SetJSON(ctx, redisrepo.UserSubscribersKey(id.String(), limit, offset), subs, time.Minute * 1); err != nil {
-		s.logger.Sugar().Errorf("failed to set user(%s) subscribers in redis: %s", id.String(), err.Error())
+	if err := s.repo.Redis.Default.SetJSON(ctx, redisrepo.UserFollowersKey(id.String(), limit, offset), followers, time.Minute * 1); err != nil {
+		s.logger.Sugar().Errorf("failed to set user(%s) followers in redis: %s", id.String(), err.Error())
 		return nil, ErrInternal
 	}
 
-	return subs, nil
+	return followers, nil
 }
 
-func (s *userService) Subscribe(ctx context.Context, subscriber model.Subscriber) error {
-	if subscriber.SubID.String() == subscriber.UserID.String() {
+func (s *userService) Follow(ctx context.Context, follower model.Follower) error {
+	if follower.FollowerID.String() == follower.UserID.String() {
 		return ErrSubToYourself
 	}
 
-	isSubscribed, err := s.repo.Redis.Default.Get(ctx, redisrepo.IsSubscribedKey(subscriber.SubID.String(), subscriber.UserID.String())).Bool()
+	isFollowed, err := s.repo.Redis.Default.Get(ctx, redisrepo.IsSubscribedKey(follower.FollowerID.String(), follower.UserID.String())).Bool()
 	if err != nil && err != redis.Nil {
 		return ErrInternal
 	}
-	if isSubscribed {
+	if isFollowed {
 		return ErrCooldown
 	}
 
 	defer func()  {
-		if err := s.repo.Redis.Default.Set(ctx, redisrepo.IsSubscribedKey(subscriber.SubID.String(), subscriber.UserID.String()), true, time.Minute * 5); err != nil {
-			s.logger.Sugar().Errorf("failed to set isSubscribed in redis: %s", err.Error())
+		if err := s.repo.Redis.Default.Set(ctx, redisrepo.IsSubscribedKey(follower.FollowerID.String(), follower.UserID.String()), true, time.Minute * 5); err != nil {
+			s.logger.Sugar().Errorf("failed to set isFollowed in redis: %s", err.Error())
 		}
 	}()
 
-	userExists, err := s.repo.Postgres.User.ExistsWithID(ctx, subscriber.UserID)
+	userExists, err := s.repo.Postgres.User.ExistsWithID(ctx, follower.UserID)
 	if err != nil {
-		s.logger.Sugar().Errorf("failed to get exists(%s) from postgres: %s", subscriber.UserID, err.Error())
+		s.logger.Sugar().Errorf("failed to get exists(%s) from postgres: %s", follower.UserID, err.Error())
 		return ErrInternal
 	}
 	if !userExists {
 		return ErrUserNotFound
 	}
 
-	if err := s.repo.Postgres.User.Subscribe(ctx, subscriber); err != nil {
+	if err := s.repo.Postgres.User.Follow(ctx, follower); err != nil {
 		if pgError, ok := err.(*pgconn.PgError); ok && pgError.Code == "23505" {
 			return ErrAlreadySubscribed
 		}
 
-		s.logger.Sugar().Errorf("failed to subscribe user(%s) on user(%s) in postgres: %s", subscriber.SubID.String(), subscriber.UserID.String(), err.Error())
+		s.logger.Sugar().Errorf("failed to subscribe user(%s) on user(%s) in postgres: %s", follower.FollowerID.String(), follower.UserID.String(), err.Error())
 		return ErrInternal
 	}
 
 	updates := map[string]interface{}{
-		"subscribers": +1,
+		"followers": +1,
 	}
-	if err := s.repo.Postgres.User.UpdateByID(ctx, subscriber.UserID, updates); err != nil {
-		s.logger.Sugar().Errorf("failed to update user(%s): %s", subscriber.UserID, err.Error())
+	if err := s.repo.Postgres.User.UpdateByID(ctx, follower.UserID, updates); err != nil {
+		s.logger.Sugar().Errorf("failed to update user(%s): %s", follower.UserID, err.Error())
 		return ErrInternal
 	}
 
 	// Delete cache
 	if err := s.repo.Redis.Default.Del(
 		ctx,
-		redisrepo.UserSubscribersKey(subscriber.UserID.String(), MAX_SEARCH_LIMIT, 0),
-		redisrepo.UserSubscribersKey(subscriber.UserID.String(), MAX_SEARCH_LIMIT, 1),
-		redisrepo.UserSubscriptionsKey(subscriber.SubID.String(), MAX_SEARCH_LIMIT, 0),
-		redisrepo.UserSubscriptionsKey(subscriber.SubID.String(), MAX_SEARCH_LIMIT, 1),
+		redisrepo.UserFollowersKey(follower.UserID.String(), MAX_SEARCH_LIMIT, 0),
+		redisrepo.UserFollowersKey(follower.UserID.String(), MAX_SEARCH_LIMIT, 1),
+		redisrepo.UserFollowsKey(follower.FollowerID.String(), MAX_SEARCH_LIMIT, 0),
+		redisrepo.UserFollowsKey(follower.FollowerID.String(), MAX_SEARCH_LIMIT, 1),
 	).Err(); err != nil {
 		s.logger.Sugar().Errorf("failed to delete redis cache: %s", err.Error())
 		return ErrInternal
@@ -250,34 +250,34 @@ func (s *userService) Subscribe(ctx context.Context, subscriber model.Subscriber
 	return nil
 }
 
-func (s *userService) FindUserSubscriptions(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullSub, error) {
+func (s *userService) FindUserFollows(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullFollower, error) {
 	maximumLimit(&limit)
 
-	subsCache, err := redisrepo.GetMany[model.FullSub](s.repo.Redis.Default, ctx, redisrepo.UserSubscriptionsKey(id.String(), limit, offset))
+	followsCache, err := redisrepo.GetMany[model.FullFollower](s.repo.Redis.Default, ctx, redisrepo.UserFollowsKey(id.String(), limit, offset))
 	if err == nil {
-		return subsCache, nil
+		return followsCache, nil
 	}
 	if err != redis.Nil {
-		s.logger.Sugar().Errorf("failed to get subscriptions from redis: %s", err.Error())
+		s.logger.Sugar().Errorf("failed to get follows from redis: %s", err.Error())
 		return nil, ErrInternal
 	}
 
-	subs, err := s.repo.Postgres.User.FindUserSubscriptions(ctx, id, limit, offset)
+	follows, err := s.repo.Postgres.User.FindUserFollows(ctx, id, limit, offset)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, pgx.ErrNoRows
 		}
 
-		s.logger.Sugar().Errorf("failed to get user(%s) subscriptions from postgres: %s", id.String(), err.Error())
+		s.logger.Sugar().Errorf("failed to get user(%s) follows from postgres: %s", id.String(), err.Error())
 		return nil, ErrInternal
 	}
 
-	if err := s.repo.Redis.Default.SetJSON(ctx, redisrepo.UserSubscriptionsKey(id.String(), limit, offset), subs, time.Minute * 1); err != nil {
-		s.logger.Sugar().Errorf("failed to set user(%s) subscriptions in redis: %s", id.String(), err.Error())
+	if err := s.repo.Redis.Default.SetJSON(ctx, redisrepo.UserFollowsKey(id.String(), limit, offset), follows, time.Minute * 1); err != nil {
+		s.logger.Sugar().Errorf("failed to set user(%s) follows in redis: %s", id.String(), err.Error())
 		return nil, ErrInternal
 	}
 
-	return subs, nil
+	return follows, nil
 }
 
 func maximumLimit(limit *int) {

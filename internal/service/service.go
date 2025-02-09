@@ -25,9 +25,9 @@ type User interface {
 	FindByID(ctx context.Context, id uuid.UUID) (*model.FullUser, error)
 	FindByUsername(ctx context.Context, username string) (*dto.GetUserDto, error)
 	SearchByUsername(ctx context.Context, username string, limit int, offset int) ([]*dto.GetUserDto, error)
-	FindUserSubscribers(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullSub, error)
-	Subscribe(ctx context.Context, subscriber model.Subscriber) error
-	FindUserSubscriptions(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullSub, error)
+	FindUserFollowers(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullFollower, error)
+	Follow(ctx context.Context, follower model.Follower) error
+	FindUserFollows(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullFollower, error)
 	Update(ctx context.Context, user model.FullUser, updates map[string]interface{}) error
 	SetAvatar(ctx context.Context, user model.FullUser, fileHeader *multipart.FileHeader) error
 	AddSocialLink(ctx context.Context, user model.FullUser, link string) error

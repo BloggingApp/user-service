@@ -14,7 +14,7 @@ type GetUserDto struct {
 	AvatarURL   *string             `json:"avatar_url"`
 	Bio         *string             `json:"bio"`
 	Role        string              `json:"role"`
-	Subscribers int64               `json:"subscribers"`
+	Followers   int64               `json:"followers"`
 	CreatedAt   time.Time           `json:"created_at"`
 	UpdatedAt   time.Time           `json:"updated_at"`
 	SocialLinks []*model.SocialLink `json:"social_links"`
@@ -28,11 +28,11 @@ func GetUserDtoFromFullUser(fullUser model.FullUser) *GetUserDto {
 		AvatarURL: fullUser.AvatarURL,
 		Bio: fullUser.Bio,
 		Role: fullUser.Role,
-		Subscribers: fullUser.Subscribers,
+		Followers: fullUser.Followers,
 		CreatedAt: fullUser.CreatedAt,
 		UpdatedAt: fullUser.UpdatedAt,
 		SocialLinks: fullUser.SocialLinks,
 	}
 }
 
-type GetUserSubsDto []*model.FullSub
+type GetUserFollowersDto []*model.FullFollower

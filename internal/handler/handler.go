@@ -52,8 +52,8 @@ func (h *Handler) InitRoutes() *gin.Engine {
 				me.Use(h.authMiddleware)
 
 				me.GET("", h.usersMe)
-				me.GET("/subscribers", h.usersGetSubscribers)
-				me.GET("/subscriptions", h.usersGetSubscriptions)
+				me.GET("/followers", h.usersGetFollowers)
+				me.GET("/follows", h.usersGetFollows)
 
 				update := me.Group("/update")
 				{
@@ -69,7 +69,7 @@ func (h *Handler) InitRoutes() *gin.Engine {
 			}
 
 			users.GET("/byUsername/:username", h.authMiddleware, h.usernameMiddleware, h.usersGetByUsername)
-			users.PUT("/subscribe/:userID", h.authMiddleware, h.usersSubscribe)
+			users.PUT("/follow/:userID", h.authMiddleware, h.usersFollow)
 		}
 	}
 

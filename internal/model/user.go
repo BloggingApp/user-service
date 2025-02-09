@@ -15,7 +15,7 @@ type User struct {
 	AvatarURL       *string   `json:"avatar_url"`
 	Bio             *string   `json:"bio"`
 	Role            string    `json:"role"`
-	Subscribers     int64     `json:"subscribers"`
+	Followers       int64     `json:"followers"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 }
@@ -29,7 +29,7 @@ type FullUser struct {
 	AvatarURL    *string             `json:"avatar_url"`
 	Bio          *string             `json:"bio"`
 	Role         string              `json:"role"`
-	Subscribers  int64               `json:"subscribers"`
+	Followers    int64               `json:"followers"`
 	CreatedAt    time.Time           `json:"created_at"`
 	UpdatedAt    time.Time           `json:"updated_at"`
 	SocialLinks  []*SocialLink       `json:"social_links"`
@@ -43,7 +43,7 @@ type FullUserWithoutPasswordHash struct {
 	AvatarURL    *string             `json:"avatar_url"`
 	Bio          *string             `json:"bio"`
 	Role         string              `json:"role"`
-	Subscribers  int64               `json:"subscribers"`
+	Followers    int64               `json:"followers"`
 	CreatedAt    time.Time           `json:"created_at"`
 	UpdatedAt    time.Time           `json:"updated_at"`
 	SocialLinks  []*SocialLink       `json:"social_links"`
@@ -58,7 +58,7 @@ func FullUserWithoutPasswordHashFromFullUser(fullUser FullUser) FullUserWithoutP
 		AvatarURL: fullUser.AvatarURL,
 		Bio: fullUser.Bio,
 		Role: fullUser.Role,
-		Subscribers: fullUser.Subscribers,
+		Followers: fullUser.Followers,
 		CreatedAt: fullUser.CreatedAt,
 		UpdatedAt: fullUser.UpdatedAt,
 		SocialLinks: fullUser.SocialLinks,

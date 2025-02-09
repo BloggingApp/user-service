@@ -2,12 +2,12 @@ package model
 
 import "github.com/google/uuid"
 
-type Subscriber struct {
-	UserID uuid.UUID `json:"user_id"`
-	SubID  uuid.UUID `json:"sub_id"`
+type Follower struct {
+	UserID      uuid.UUID `json:"user_id"`
+	FollowerID  uuid.UUID `json:"follower_id"`
 }
 
-type FullSub struct {
+type FullFollower struct {
 	ID          uuid.UUID `json:"id"`
 	Username    string    `json:"username"`
 	DisplayName *string   `json:"display_name"`
