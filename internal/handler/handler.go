@@ -28,11 +28,9 @@ func (h *Handler) InitRoutes() *gin.Engine {
 
 	r.Use(cors.New(cors.Config{
 		AllowOrigins: []string{viper.GetString("client.origin")},
-		AllowMethods: []string{"POST", "GET", "PATCH"},
+		AllowMethods: []string{"POST", "GET", "PATCH", "PUT"},
 		AllowCredentials: true,
 	}))
-
-	r.Static("/public", "./public")
 
 	v1 := r.Group("/api/v1")
 	{
