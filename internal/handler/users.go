@@ -28,21 +28,21 @@ func (h *Handler) usersGetByUsername(c *gin.Context) {
 	c.JSON(http.StatusOK, user)
 }
 
-type usersGetSubscribersInput struct {
+type usersGetFollowersInput struct {
 	Limit  int `json:"limit" binding:"required"`
 	Offset int `json:"offset" binding:"min=0"`
 }
 
-func (h *Handler) usersGetSubscribers(c *gin.Context) {
+func (h *Handler) usersGetFollowers(c *gin.Context) {
 	user := h.getUser(c)
 
-	var input usersGetSubscribersInput
+	var input usersGetFollowersInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, dto.NewBasicResponse(false, err.Error()))
 		return
 	}
 
-	subs, err := h.services.User.FindUserSubscribers(c.Request.Context(), user.ID, input.Limit, input.Offset)
+	subs, err := h.services.User.FindUserFollowers(c.Request.Context(), user.ID, input.Limit, input.Offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, dto.NewBasicResponse(false, err.Error()))
 		return
@@ -51,8 +51,8 @@ func (h *Handler) usersGetSubscribers(c *gin.Context) {
 	c.JSON(http.StatusOK, subs)
 }
 
-func (h *Handler) usersSubscribe(c *gin.Context) {
-	sub := h.getUser(c)
+func (h *Handler) usersFollow(c *gin.Context) {
+	follower := h.getUser(c)
 
 	userIDString := strings.TrimSpace(c.Param("userID"))
 	userID, err := uuid.ParseBytes([]byte(userIDString))
@@ -61,7 +61,7 @@ func (h *Handler) usersSubscribe(c *gin.Context) {
 		return
 	}
 
-	if err := h.services.User.Subscribe(c.Request.Context(), model.Subscriber{SubID: sub.ID, UserID: userID}); err != nil {
+	if err := h.services.User.Follow(c.Request.Context(), model.Follower{FollowerID: follower.ID, UserID: userID}); err != nil {
 		c.JSON(http.StatusInternalServerError, dto.NewBasicResponse(false, err.Error()))
 		return
 	}
@@ -69,21 +69,21 @@ func (h *Handler) usersSubscribe(c *gin.Context) {
 	c.JSON(http.StatusOK, dto.NewBasicResponse(true, ""))
 }
 
-type usersGetSubscriptionsInput struct {
+type usersGetFollowsInput struct {
 	Limit  int `json:"limit" binding:"required"`
 	Offset int `json:"offset" binding:"min=0"`
 }
 
-func (h *Handler) usersGetSubscriptions(c *gin.Context) {
+func (h *Handler) usersGetFollows(c *gin.Context) {
 	user := h.getUser(c)
 
-	var input usersGetSubscriptionsInput
+	var input usersGetFollowsInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, dto.NewBasicResponse(false, err.Error()))
 		return
 	}
 
-	subscriptions, err := h.services.User.FindUserSubscriptions(c.Request.Context(), user.ID, input.Limit, input.Offset)
+	subscriptions, err := h.services.User.FindUserFollows(c.Request.Context(), user.ID, input.Limit, input.Offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, dto.NewBasicResponse(false, err.Error()))
 		return
