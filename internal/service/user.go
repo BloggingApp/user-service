@@ -44,9 +44,9 @@ const (
 
 	MAX_SEARCH_LIMIT = 10
 
-	TIKTOK_LINK_TYPE = "tiktok"
 	GITHUB_LINK_TYPE = "github"
 	TELEGRAM_LINK_TYPE = "telegram"
+	MAX_SOCIAL_LINKS_COUNT = 2
 )
 
 func newUserService(logger *zap.Logger, repo *repository.Repository, rabbitmq *rabbitmq.MQConn) User {
@@ -56,7 +56,6 @@ func newUserService(logger *zap.Logger, repo *repository.Repository, rabbitmq *r
 		rabbitmq: rabbitmq,
 		httpClient: &http.Client{},
 		socialLinkTypes: map[string]string{
-			"https://tiktok.com/": TIKTOK_LINK_TYPE,
 			"https://github.com/": GITHUB_LINK_TYPE,
 			"https://t.me/": TELEGRAM_LINK_TYPE,
 		},
@@ -460,7 +459,7 @@ func (s *userService) publishUserInfoUpdated(userID uuid.UUID, updates map[strin
 }
 
 func (s *userService) AddSocialLink(ctx context.Context, user model.FullUser, link string) error {
-	if len(user.SocialLinks)+1 > 4 {
+	if len(user.SocialLinks) >= MAX_SOCIAL_LINKS_COUNT {
 		return ErrMaxSocialLinksAchieved
 	}
 
