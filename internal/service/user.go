@@ -450,8 +450,8 @@ func (s *userService) publishUserInfoUpdated(userID uuid.UUID, updates map[strin
 		s.logger.Sugar().Errorf("failed to marshal user(%s) updates to json: %s", userID.String(), err.Error())
 		return ErrInternal
 	}
-	if err := s.rabbitmq.Publish(rabbitmq.USER_INFO_UPDATED_QUEUE, bytes); err != nil {
-		s.logger.Sugar().Errorf("failed to publish rabbitmq event to queue(%s): %s", rabbitmq.USER_INFO_UPDATED_QUEUE, err.Error())
+	if err := s.rabbitmq.PublishExchange(rabbitmq.USERS_UPDATE_EXCHANGE, bytes); err != nil {
+		s.logger.Sugar().Errorf("failed to publish rabbitmq event to exchange(%s): %s", rabbitmq.USERS_UPDATE_EXCHANGE, err.Error())
 		return ErrInternal
 	}
 

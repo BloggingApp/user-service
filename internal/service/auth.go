@@ -117,7 +117,7 @@ func (s *authService) SendRegistrationCode(ctx context.Context, createUserDto dt
 		return ErrInternal
 	}
 
-	if err := s.rabbitmq.Publish(rabbitmq.REGISTRATION_CODE_MAIL_QUEUE, queueData); err != nil {
+	if err := s.rabbitmq.PublishToQueue(rabbitmq.REGISTRATION_CODE_MAIL_QUEUE, queueData); err != nil {
 		s.logger.Sugar().Errorf("failed to publish to rabbitmq queue(%s): %s", rabbitmq.REGISTRATION_CODE_MAIL_QUEUE, err.Error())
 		return ErrInternal
 	}
@@ -193,6 +193,19 @@ func (s *authService) VerifyRegistrationCodeAndCreateUser(ctx context.Context, c
 		return nil, nil, ErrInternal
 	}
 
+	userCreatedBodyJSON, err := json.Marshal(map[string]string{
+		"id": user.ID.String(),
+		"username": user.Username,
+	})
+	if err != nil {
+		s.logger.Sugar().Errorf("failed to marshal user(%s) created body to json: %s", user.ID.String(), err.Error())
+		return nil, nil, ErrInternal
+	}
+	if err := s.rabbitmq.PublishToQueue(rabbitmq.USER_CREATED_QUEUE, userCreatedBodyJSON); err != nil {
+		s.logger.Sugar().Errorf("failed to publish user(%s) created event to rabbitmq: %s", user.ID.String(), err.Error())
+		return nil, nil, ErrInternal
+	}
+
 	return user, jwtPair, nil
 }
 
@@ -245,7 +258,7 @@ func (s *authService) SendSignInCode(ctx context.Context, signInDto dto.SignIn) 
 		return ErrInternal
 	}
 
-	if err := s.rabbitmq.Publish(rabbitmq.SIGNIN_CODE_MAIL_QUEUE, queueData); err != nil {
+	if err := s.rabbitmq.PublishToQueue(rabbitmq.SIGNIN_CODE_MAIL_QUEUE, queueData); err != nil {
 		s.logger.Sugar().Errorf("failed to publish to rabbitmq queue(%s): %s", rabbitmq.SIGNIN_CODE_MAIL_QUEUE, err.Error())
 		return ErrInternal
 	}
