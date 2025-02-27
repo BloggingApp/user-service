@@ -201,7 +201,7 @@ func (s *authService) VerifyRegistrationCodeAndCreateUser(ctx context.Context, c
 		s.logger.Sugar().Errorf("failed to marshal user(%s) created body to json: %s", user.ID.String(), err.Error())
 		return nil, nil, ErrInternal
 	}
-	if err := s.rabbitmq.PublishToQueue(rabbitmq.USER_CREATED_QUEUE, userCreatedBodyJSON); err != nil {
+	if err := s.rabbitmq.PublishExchange(rabbitmq.USERS_CREATED_EXCHANGE, userCreatedBodyJSON); err != nil {
 		s.logger.Sugar().Errorf("failed to publish user(%s) created event to rabbitmq: %s", user.ID.String(), err.Error())
 		return nil, nil, ErrInternal
 	}
