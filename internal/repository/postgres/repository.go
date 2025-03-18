@@ -18,6 +18,7 @@ type User interface {
 	SearchByUsername(ctx context.Context, username string, limit int, offset int) ([]*model.FullUser, error)
 	FindUserFollowers(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullFollower, error)
 	Follow(ctx context.Context, follower model.Follower) error
+	Unfollow(ctx context.Context, follower model.Follower) error
 	FindUserFollows(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullFollower, error)
 	ExistsWithID(ctx context.Context, id uuid.UUID) (bool, error)
 	ExistsWithUsername(ctx context.Context, username string) (bool, error)

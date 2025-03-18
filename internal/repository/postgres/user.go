@@ -283,7 +283,7 @@ func (r *userRepo) FindByEmailOrUsername(ctx context.Context, email string, user
 }
 
 func (r *userRepo) UpdateByID(ctx context.Context, id uuid.UUID, updates map[string]interface{}) error {
-	allowedFields := []string{"username", "display_name", "bio", "avatar_url"}
+	allowedFields := []string{"username", "display_name", "bio", "avatar_url", "followers"}
 	allowedFieldsSet := make(map[string]struct{}, len(allowedFields))
 	for _, field := range allowedFields {
 		allowedFieldsSet[field] = struct{}{}
@@ -463,7 +463,99 @@ func (r *userRepo) FindUserFollowers(ctx context.Context, id uuid.UUID, limit in
 }
 
 func (r *userRepo) Follow(ctx context.Context, follower model.Follower) error {
-	_, err := r.db.Exec(ctx, "INSERT INTO followers(user_id, follower_id) VALUES($1, $2)", follower.UserID, follower.FollowerID)
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	var exists bool
+	if err := tx.QueryRow(
+		ctx,
+		`
+		SELECT EXISTS(SELECT 1 FROM followers WHERE user_id = $1 AND follower_id = $2)
+		`,
+		follower.UserID, follower.FollowerID,
+	).Scan(&exists); err != nil {
+		return err
+	}
+
+	if exists {
+		return nil
+	}
+
+	_, err = tx.Exec(
+		ctx,
+		`
+		INSERT INTO followers(user_id, follower_id)
+		VALUES($1, $2)
+		ON CONFLICT DO NOTHING
+		`,
+		follower.UserID,
+		follower.FollowerID,
+	)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec(ctx, "UPDATE users SET followers = followers + 1 WHERE id = $1", follower.UserID)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
+func (r *userRepo) Unfollow(ctx context.Context, follower model.Follower) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	var exists bool
+	if err := tx.QueryRow(
+		ctx,
+		`
+		SELECT EXISTS(SELECT 1 FROM followers WHERE user_id = $1 AND follower_id = $2)
+		`,
+		follower.UserID, follower.FollowerID,
+	).Scan(&exists); err != nil {
+		return err
+	}
+
+	if !exists {
+		return nil
+	}
+
+	_, err = tx.Exec(
+		ctx,
+		`
+		DELETE FROM followers
+		WHERE user_id = $1 AND follower_id = $2
+		`,
+		follower.UserID,
+		follower.FollowerID,
+	)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec(ctx, "UPDATE users SET followers = followers - 1 WHERE id = $1", follower.UserID)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
+func (r *userRepo) IncrFollowers(ctx context.Context, userID uuid.UUID) error {
+	_, err := r.db.Exec(ctx, "UPDATE users SET followers = followers + 1 WHERE id = $1", userID)
+	return err
+}
+
+func (r *userRepo) DecrFollowers(ctx context.Context, userID uuid.UUID) error {
+	_, err := r.db.Exec(ctx, "UPDATE users SET followers = followers - 1 WHERE id = $1", userID)
 	return err
 }
 
@@ -473,7 +565,7 @@ func (r *userRepo) FindUserFollows(ctx context.Context, id uuid.UUID, limit int,
 	rows, err := r.db.Query(
 		ctx,
 		`
-		SELECT f.sub_id, u.username, u.display_name, u.avatar_url, u.bio
+		SELECT f.follower_id, u.username, u.display_name, u.avatar_url, u.bio
 		FROM followers f
 		JOIN users u ON f.user_id = u.id
 		WHERE f.follower_id = $1

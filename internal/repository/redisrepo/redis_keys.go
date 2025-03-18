@@ -10,7 +10,7 @@ const (
 	SEARCH_RESULTS_KEY = "search-results:%s:%d:%d" // <any word>:<limit>:<offset>
 	USER_FOLLOWERS_KEY = "user-followers:%s:%d:%d" // <userID>:<limit>:<offset>
 	USER_FOLLOWS_KEY = "user-follows:%s:%d:%d" // <userID>:<limit>:<offset>
-	IS_SUBSCRIBED_KEY = "%s-is-followed-on:%s" // <followerID>:<userID>
+	IS_FOLLOWING_KEY = "%s-is-following:%s" // <followerID>:<userID>
 	PREPARE_USERNAME_KEY = "%s-prepare-for-registration" // <username>
 	PREPARE_USER_EMAIL_KEY = "%s-prepare-for-registration" // <email>
 )
@@ -43,8 +43,8 @@ func UserFollowsKey(userID string, limit int, offset int) string {
 	return fmt.Sprintf(USER_FOLLOWS_KEY, userID, limit, offset)
 }
 
-func IsSubscribedKey(followerID string, userID string) string {
-	return fmt.Sprintf(IS_SUBSCRIBED_KEY, followerID, userID)
+func IsFollowingKey(followerID string, userID string) string {
+	return fmt.Sprintf(IS_FOLLOWING_KEY, followerID, userID)
 }
 
 func PrepareUsernameKey(username string) string {

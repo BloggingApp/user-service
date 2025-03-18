@@ -21,7 +21,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/h2non/filetype"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/redis/go-redis/v9"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -191,19 +190,19 @@ func (s *userService) FindUserFollowers(ctx context.Context, id uuid.UUID, limit
 
 func (s *userService) Follow(ctx context.Context, follower model.Follower) error {
 	if follower.FollowerID.String() == follower.UserID.String() {
-		return ErrSubToYourself
+		return ErrFollowToYourself
 	}
 
-	isFollowed, err := s.repo.Redis.Default.Get(ctx, redisrepo.IsSubscribedKey(follower.FollowerID.String(), follower.UserID.String())).Bool()
+	isFollowing, err := s.repo.Redis.Default.Get(ctx, redisrepo.IsFollowingKey(follower.FollowerID.String(), follower.UserID.String())).Bool()
 	if err != nil && err != redis.Nil {
 		return ErrInternal
 	}
-	if isFollowed {
-		return ErrCooldown
+	if isFollowing {
+		return ErrAlreadyFollowing
 	}
 
 	defer func()  {
-		if err := s.repo.Redis.Default.Set(ctx, redisrepo.IsSubscribedKey(follower.FollowerID.String(), follower.UserID.String()), true, time.Minute * 5); err != nil {
+		if err := s.repo.Redis.Default.Set(ctx, redisrepo.IsFollowingKey(follower.FollowerID.String(), follower.UserID.String()), true, time.Minute * 5); err != nil {
 			s.logger.Sugar().Errorf("failed to set isFollowed in redis: %s", err.Error())
 		}
 	}()
@@ -218,19 +217,21 @@ func (s *userService) Follow(ctx context.Context, follower model.Follower) error
 	}
 
 	if err := s.repo.Postgres.User.Follow(ctx, follower); err != nil {
-		if pgError, ok := err.(*pgconn.PgError); ok && pgError.Code == "23505" {
-			return ErrAlreadySubscribed
-		}
-
 		s.logger.Sugar().Errorf("failed to subscribe user(%s) on user(%s) in postgres: %s", follower.FollowerID.String(), follower.UserID.String(), err.Error())
 		return ErrInternal
 	}
 
-	updates := map[string]interface{}{
-		"followers": +1,
+	// Sending follow to rabbitmq
+	followMQBody, err := json.Marshal(map[string]interface{}{
+		"user_id": follower.UserID,
+		"follower_id": follower.FollowerID,
+	})
+	if err != nil {
+		s.logger.Sugar().Errorf("failed to marshal followMQ body: %s", err.Error())
+		return ErrInternal
 	}
-	if err := s.repo.Postgres.User.UpdateByID(ctx, follower.UserID, updates); err != nil {
-		s.logger.Sugar().Errorf("failed to update user(%s): %s", follower.UserID, err.Error())
+	if err := s.rabbitmq.PublishToQueue(rabbitmq.FOLLOWS_QUEUE, followMQBody); err != nil {
+		s.logger.Sugar().Errorf("failed to publish follow to queue: %s", err.Error())
 		return ErrInternal
 	}
 
@@ -243,6 +244,29 @@ func (s *userService) Follow(ctx context.Context, follower model.Follower) error
 		redisrepo.UserFollowsKey(follower.FollowerID.String(), MAX_SEARCH_LIMIT, 1),
 	).Err(); err != nil {
 		s.logger.Sugar().Errorf("failed to delete redis cache: %s", err.Error())
+		return ErrInternal
+	}
+
+	return nil
+}
+
+func (s *userService) Unfollow(ctx context.Context, follower model.Follower) error {
+	isFollowing, err := s.repo.Redis.Get(ctx, redisrepo.IsFollowingKey(follower.FollowerID.String(), follower.UserID.String())).Bool()
+	if err != nil && err != redis.Nil {
+		return ErrInternal
+	}
+	if !isFollowing {
+		return nil
+	}
+
+	defer func()  {
+		if err := s.repo.Redis.Default.Set(ctx, redisrepo.IsFollowingKey(follower.FollowerID.String(), follower.UserID.String()), true, time.Minute * 5); err != nil {
+			s.logger.Sugar().Errorf("failed to set isFollowed in redis: %s", err.Error())
+		}
+	}()
+
+	if err := s.repo.Postgres.User.Unfollow(ctx, follower); err != nil {
+		s.logger.Sugar().Errorf("failed to unfollow follower(%s) from user(%s): %s", follower.FollowerID.String(), follower.UserID.String(), err.Error())
 		return ErrInternal
 	}
 
