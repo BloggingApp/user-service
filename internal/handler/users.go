@@ -69,6 +69,24 @@ func (h *Handler) usersFollow(c *gin.Context) {
 	c.JSON(http.StatusOK, dto.NewBasicResponse(true, ""))
 }
 
+func (h *Handler) usersUnfollow(c *gin.Context) {
+	follower := h.getUser(c)
+
+	userIDString := strings.TrimSpace(c.Param("userID"))
+	userID, err := uuid.ParseBytes([]byte(userIDString))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.NewBasicResponse(false, errInvalidID.Error()))
+		return
+	}
+
+	if err := h.services.User.Unfollow(c.Request.Context(), model.Follower{FollowerID: follower.ID, UserID: userID}); err != nil {
+		c.JSON(http.StatusInternalServerError, dto.NewBasicResponse(false, err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.NewBasicResponse(true, ""))
+}
+
 type usersGetFollowsInput struct {
 	Limit  int `json:"limit" binding:"required"`
 	Offset int `json:"offset" binding:"min=0"`
