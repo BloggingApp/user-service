@@ -18,11 +18,12 @@
 - **`[PUB]` POST** -> `/sign-up/verify` - *verify registration code and register*
 - **`[PUB]` POST** -> `/sign-in/send-code` - *send confirmation code for log in*
 - **`[PUB]` POST** -> `/sign-in/verify` - *verify **two-factor authentication** code and log in*
-- **`PUB` POST** -> `/refresh` - *refresh token pair*
+- **`[PUB]` POST** -> `/refresh` - *refresh token pair*
 
 `/users`:
 - **`[AUTH]` GET** -> `/byUsername/:<username>` - *get user by username*
 - **`[AUTH]` PUT** -> `/follow/:<userID>` - *follow user*
+- **`[AUTH]` DELETE** -> `/unfollow/:<userID>` - *unfollow user*
 ---
 - **`[AUTH]`** `/@me`:
     - **GET** -> `/` - *get authorized user info*
