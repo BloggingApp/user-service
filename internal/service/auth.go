@@ -188,7 +188,7 @@ func (s *authService) VerifyRegistrationCodeAndCreateUser(ctx context.Context, c
 		s.logger.Sugar().Errorf("failed to delete user(%s) prepare keys from redis: %s", createdUser.ID, err.Error())
 	}
 
-	user, err := s.userService.FindByUsername(ctx, createdUser.Username)
+	user, err := s.userService.FindByUsername(ctx, nil, createdUser.Username)
 	if err != nil {
 		return nil, nil, ErrInternal
 	}
@@ -304,7 +304,7 @@ func (s *authService) VerifySignInCodeAndSignIn(ctx context.Context, code int) (
 		return nil, nil, ErrInternal
 	}
 
-	user, err := s.userService.FindByUsername(ctx, userData.Username)
+	user, err := s.userService.FindByUsername(ctx, nil, userData.Username)
 	if err != nil {
 		return nil, nil, err
 	}

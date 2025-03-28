@@ -48,7 +48,7 @@ func (r *userRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.FullUser,
 		ctx,
 		`
 		SELECT
-		u.id, u.email, u.username, u.password_hash, u.display_name, u.avatar_url, u.bio, u.role, u.followers, u.created_at, u.updated_at, sl.platform, sl.url
+		u.id, u.email, u.username, u.display_name, u.avatar_url, u.bio, u.role, u.followers, u.created_at, u.updated_at, sl.platform, sl.url
 		FROM users u
 		LEFT JOIN social_links sl ON u.id = sl.user_id
 		WHERE u.id = $1
@@ -66,7 +66,6 @@ func (r *userRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.FullUser,
 			userID uuid.UUID
 			userEmail string
 			userUsername string
-			userPasswordHash string
 			userDisplayName *string
 			userAvatarURL *string
 			userBio *string
@@ -81,7 +80,6 @@ func (r *userRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.FullUser,
 			&userID,
 			&userEmail,
 			&userUsername,
-			&userPasswordHash,
 			&userDisplayName,
 			&userAvatarURL,
 			&userBio,
@@ -101,7 +99,6 @@ func (r *userRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.FullUser,
 				ID: userID,
                 Email: userEmail,
                 Username: userUsername,
-				PasswordHash: userPasswordHash,
                 DisplayName: userDisplayName,
                 AvatarURL: userAvatarURL,
                 Bio: userBio,
@@ -164,16 +161,18 @@ func (r *userRepo) FindByEmail(ctx context.Context, email string) (*model.User, 
 	return &user, nil
 }
 
-func (r *userRepo) FindByUsername(ctx context.Context, username string) (*model.FullUser, error) {
+func (r *userRepo) FindByUsername(ctx context.Context, getterID uuid.UUID, username string) (*model.FullUser, error) {
 	rows, err := r.db.Query(
 		ctx,
 		`
 		SELECT
-		u.id, u.email, u.username, u.display_name, u.avatar_url, u.bio, u.role, u.followers, u.created_at, u.updated_at, sl.platform, sl.url
+		u.id, u.email, u.username, u.display_name, u.avatar_url, u.bio, u.role, u.followers, u.created_at, u.updated_at, sl.platform, sl.url, f.new_post_notifications_enabled
 		FROM users u
 		LEFT JOIN social_links sl ON u.id = sl.user_id
-		WHERE u.username = $1
+		LEFT JOIN followers f ON f.user_id = u.id AND f.follower_id = $1
+		WHERE u.username = $2
 		`,
+		getterID,
 		username,
 	)
 	if err != nil {
@@ -196,6 +195,7 @@ func (r *userRepo) FindByUsername(ctx context.Context, username string) (*model.
 			userUpdatedAt time.Time
 			socialLinkPlatform *string
 			socialLinkUrl *string
+			newPostNotificationsEnabled *bool
 		)
 		if err := rows.Scan(
 			&userID,
@@ -210,6 +210,7 @@ func (r *userRepo) FindByUsername(ctx context.Context, username string) (*model.
 			&userUpdatedAt,
 			&socialLinkPlatform,
 			&socialLinkUrl,
+			&newPostNotificationsEnabled,
 		); err != nil {
 			return nil, err
 		}
@@ -238,6 +239,13 @@ func (r *userRepo) FindByUsername(ctx context.Context, username string) (*model.
 				Platform: *socialLinkPlatform,
 				URL: *socialLinkUrl,
 			})
+		}
+
+		if newPostNotificationsEnabled != nil {
+			user.IsFollowing = true
+			user.NewPostNotificationsEnabled = *newPostNotificationsEnabled
+		} else {
+			user.IsFollowing = false
 		}
 	}
 
