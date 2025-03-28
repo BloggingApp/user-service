@@ -23,7 +23,7 @@ type Auth interface {
 
 type User interface {
 	FindByID(ctx context.Context, id uuid.UUID) (*model.FullUser, error)
-	FindByUsername(ctx context.Context, username string) (*dto.GetUserDto, error)
+	FindByUsername(ctx context.Context, getterID *uuid.UUID, username string) (*dto.GetUserDto, error)
 	SearchByUsername(ctx context.Context, username string, limit int, offset int) ([]*dto.GetUserDto, error)
 	FindUserFollowers(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullFollower, error)
 	Follow(ctx context.Context, follower model.Follower) error

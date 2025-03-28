@@ -13,19 +13,21 @@ import (
 func (h *Handler) usersMe(c *gin.Context) {
 	user := h.getUser(c)
 
-	c.JSON(http.StatusOK, model.FullUserWithoutPasswordHashFromFullUser(*user))
+	c.JSON(http.StatusOK, user)
 }
 
 func (h *Handler) usersGetByUsername(c *gin.Context) {
+	user := h.getUser(c)
+
 	username := c.GetString("username")
 
-	user, err := h.services.User.FindByUsername(c.Request.Context(), username)
+	result, err := h.services.User.FindByUsername(c.Request.Context(), &user.ID, username)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, dto.NewBasicResponse(false, err.Error()))
 		return
 	}
 
-	c.JSON(http.StatusOK, user)
+	c.JSON(http.StatusOK, result)
 }
 
 type usersGetFollowersInput struct {

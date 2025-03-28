@@ -90,7 +90,7 @@ func (s *userService) FindByID(ctx context.Context, id uuid.UUID) (*model.FullUs
 	return user, nil
 }
 
-func (s *userService) FindByUsername(ctx context.Context, username string) (*dto.GetUserDto, error) {
+func (s *userService) FindByUsername(ctx context.Context, getterID *uuid.UUID, username string) (*dto.GetUserDto, error) {
 	userCache, err := redisrepo.Get[dto.GetUserDto](s.repo.Redis.Default, ctx, redisrepo.UserByUsernameKey(username))
 	if err == nil {
 		return userCache, nil
@@ -101,7 +101,7 @@ func (s *userService) FindByUsername(ctx context.Context, username string) (*dto
 		return nil, ErrInternal
 	}
 
-	user, err := s.repo.Postgres.User.FindByUsername(ctx, username)
+	user, err := s.repo.Postgres.User.FindByUsername(ctx, *getterID, username)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, pgx.ErrNoRows
