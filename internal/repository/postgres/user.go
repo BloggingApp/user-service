@@ -557,13 +557,8 @@ func (r *userRepo) Unfollow(ctx context.Context, follower model.Follower) error 
 	return tx.Commit(ctx)
 }
 
-func (r *userRepo) IncrFollowers(ctx context.Context, userID uuid.UUID) error {
-	_, err := r.db.Exec(ctx, "UPDATE users SET followers = followers + 1 WHERE id = $1", userID)
-	return err
-}
-
-func (r *userRepo) DecrFollowers(ctx context.Context, userID uuid.UUID) error {
-	_, err := r.db.Exec(ctx, "UPDATE users SET followers = followers - 1 WHERE id = $1", userID)
+func (r *userRepo) UpdateNewPostNotificationsEnabled(ctx context.Context, follower model.Follower) error {
+	_, err := r.db.Exec(ctx, "UPDATE followers SET new_post_notifications_enabled = $1 WHERE user_id = $2 AND follower_id = $3", follower.NewPostNotificationsEnabled, follower.UserID, follower.FollowerID)
 	return err
 }
 
