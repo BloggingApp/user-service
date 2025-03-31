@@ -10,6 +10,11 @@ import (
 	"github.com/google/uuid"
 )
 
+type limitOffsetInput struct {
+	Limit  int `json:"limit" binding:"required"`
+	Offset int `json:"offset" binding:"min=0"`
+}
+
 func (h *Handler) usersMe(c *gin.Context) {
 	user := h.getUser(c)
 
@@ -30,15 +35,10 @@ func (h *Handler) usersGetByUsername(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-type usersGetFollowersInput struct {
-	Limit  int `json:"limit" binding:"required"`
-	Offset int `json:"offset" binding:"min=0"`
-}
-
 func (h *Handler) usersGetFollowers(c *gin.Context) {
 	user := h.getUser(c)
 
-	var input usersGetFollowersInput
+	var input limitOffsetInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, dto.NewBasicResponse(false, err.Error()))
 		return
@@ -89,15 +89,42 @@ func (h *Handler) usersUnfollow(c *gin.Context) {
 	c.JSON(http.StatusOK, dto.NewBasicResponse(true, ""))
 }
 
-type usersGetFollowsInput struct {
-	Limit  int `json:"limit" binding:"required"`
-	Offset int `json:"offset" binding:"min=0"`
+type usersUpdateNewPostNotificationsEnabledRequest struct {
+	Value bool `json:"value" binding:"required"`
+}
+
+func (h *Handler) usersUpdateNewPostNotificationsEnabled(c *gin.Context) {
+	follower := h.getUser(c)
+
+	userIDString := strings.TrimSpace(c.Param("userID"))
+	userID, err := uuid.Parse(userIDString)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.NewBasicResponse(false, errInvalidID.Error()))
+		return
+	}
+
+	var req usersUpdateNewPostNotificationsEnabledRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.NewBasicResponse(false, err.Error()))
+		return
+	}
+
+	if err := h.services.User.UpdateNewPostNotificationsEnabled(c.Request.Context(), model.Follower{
+		FollowerID: follower.ID,
+		UserID: userID,
+		NewPostNotificationsEnabled: req.Value,
+	}); err != nil {
+		c.JSON(http.StatusInternalServerError, dto.NewBasicResponse(false, err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.NewBasicResponse(true, ""))
 }
 
 func (h *Handler) usersGetFollows(c *gin.Context) {
 	user := h.getUser(c)
 
-	var input usersGetFollowsInput
+	var input limitOffsetInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, dto.NewBasicResponse(false, err.Error()))
 		return

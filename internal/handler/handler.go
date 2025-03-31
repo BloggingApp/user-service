@@ -67,8 +67,9 @@ func (h *Handler) InitRoutes() *gin.Engine {
 			}
 
 			users.GET("/byUsername/:username", h.authMiddleware, h.usernameMiddleware, h.usersGetByUsername)
-			users.PUT("/follow/:userID", h.authMiddleware, h.usersFollow)
-			users.DELETE("/unfollow/:userID", h.authMiddleware, h.usersUnfollow)
+			users.PUT("/:userID/follow", h.authMiddleware, h.usersFollow)
+			users.DELETE("/:userID/unfollow", h.authMiddleware, h.usersUnfollow)
+			users.PATCH("/:userID/notifications", h.authMiddleware, h.usersUpdateNewPostNotificationsEnabled)
 		}
 	}
 
