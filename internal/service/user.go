@@ -276,8 +276,19 @@ func (s *userService) Unfollow(ctx context.Context, follower model.Follower) err
 func (s *userService) UpdateNewPostNotificationsEnabled(ctx context.Context, follower model.Follower) error {
 	if err := s.repo.Postgres.User.UpdateNewPostNotificationsEnabled(ctx, follower); err != nil {
 		s.logger.Sugar().Errorf("failed to update user(%s)'s new_post_notifications_enabled for author(%s) in postgres: %s", follower.FollowerID.String(), follower.UserID.String(), err.Error())
-		return err
+		return ErrInternal
 	}
+
+	bodyJSON, err := json.Marshal(follower)
+	if err != nil {
+		s.logger.Sugar().Errorf("failed to marshal model.Follower body to json: %s", err.Error())
+		return ErrInternal
+	}
+	if err := s.rabbitmq.PublishToQueue(rabbitmq.FOLLOWERS_NEW_POST_NOTIFICATIONS_ENABLED_UPDATES_QUEUE, bodyJSON); err != nil {
+		s.logger.Sugar().Errorf("failed to publish new post notifications enabled update queue: %s", err.Error())
+		return ErrInternal
+	}
+
 	return nil
 }
 
