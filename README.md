@@ -32,5 +32,6 @@
     - **GET** -> `/follows` - *get user followed channel*
     - **PATCH** -> `/update` - *update user info*
     - **PATCH** -> `/update/setAvatar` - *set avatar*
+    - **PATCH** -> `/update/updatePassword` - *update password*
     - **PUT** -> `/update/socialLinks` - *add social link*
     - **DELETE** -> `/update/socialLinks` - *delete social link*
