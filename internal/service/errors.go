@@ -22,4 +22,5 @@ var (
 	ErrFailedToUploadAvatarToCDN = errors.New("failed to upload avatar to cdn")
 	ErrMaxSocialLinksAchieved = errors.New("maximum count of social links achieved")
 	ErrLinkHasInvalidType = errors.New("the link has invalid type")
+	ErrInvalidOldPassword = errors.New("invalid old password")
 )

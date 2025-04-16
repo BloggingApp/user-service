@@ -11,10 +11,12 @@ import (
 type User interface {
 	Create(ctx context.Context, user model.User) (*model.User, error)
 	FindByID(ctx context.Context, id uuid.UUID) (*model.FullUser, error)
+	FindPassword(ctx context.Context, id uuid.UUID) (*model.User, error)
 	FindByEmail(ctx context.Context, email string) (*model.User, error)
 	FindByUsername(ctx context.Context, getterID uuid.UUID, username string) (*model.FullUser, error)
 	FindByEmailOrUsername(ctx context.Context, email string, username string) (*model.User, error)
 	UpdateByID(ctx context.Context, id uuid.UUID, updates map[string]interface{}) error
+	UpdatePasswordHash(ctx context.Context, id uuid.UUID, newPasswordHash string) error
 	SearchByUsername(ctx context.Context, username string, limit int, offset int) ([]*model.FullUser, error)
 	FindUserFollowers(ctx context.Context, id uuid.UUID, limit int, offset int) ([]*model.FullFollower, error)
 	Follow(ctx context.Context, follower model.Follower) error

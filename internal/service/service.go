@@ -19,6 +19,7 @@ type Auth interface {
 	SendSignInCode(ctx context.Context, signInDto dto.SignIn) error
 	VerifySignInCodeAndSignIn(ctx context.Context, code int) (*dto.GetUserDto, *jwtmanager.JWTPair, error)
 	RefreshTokens(ctx context.Context, refreshToken string) (*jwtmanager.JWTPair, error)
+	ChangePassword(ctx context.Context, userID uuid.UUID, oldPassword, newPassword string) error
 }
 
 type User interface {

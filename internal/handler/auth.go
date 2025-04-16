@@ -98,3 +98,20 @@ func (h *Handler) authRefresh(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, dto.RefreshResponse{Ok: true, AccessToken: tokenPair.AccessToken})
 }
+
+func (h *Handler) authUpdatePassword(c *gin.Context) {
+	user := h.getUser(c)
+
+	var input dto.UpdatePasswordRequest
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, dto.NewBasicResponse(false, err.Error()))
+		return
+	}
+
+	if err := h.services.Auth.ChangePassword(c.Request.Context(), user.ID, input.OldPassword, input.NewPassword); err != nil {
+		c.JSON(http.StatusInternalServerError, dto.NewBasicResponse(false, err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, nil)
+}
