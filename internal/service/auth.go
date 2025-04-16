@@ -357,3 +357,28 @@ func (s *authService) RefreshTokens(ctx context.Context, refreshToken string) (*
 
 	return jwtPair, nil
 }
+
+func (s *authService) ChangePassword(ctx context.Context, userID uuid.UUID, oldPassword, newPassword string) error {
+	user, err := s.repo.Postgres.User.FindPassword(ctx, userID)
+	if err != nil {
+		s.logger.Sugar().Errorf("failed to get user(%s) from postgres: %s", userID.String(), err.Error())
+		return ErrInternal
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(oldPassword)); err != nil {
+		return ErrInvalidOldPassword
+	}
+
+	newPasswordHash, err := bcrypt.GenerateFromPassword([]byte(newPassword), 11)
+	if err != nil {
+		s.logger.Sugar().Errorf("failed to generate new password hash for user(%s): %s", userID.String(), err.Error())
+		return ErrInternal
+	}
+
+	if err := s.repo.Postgres.User.UpdatePasswordHash(ctx, userID, string(newPasswordHash)); err != nil {
+		s.logger.Sugar().Errorf("failed to update user(%s)'s password_hash: %s", userID.String(), err.Error())
+		return ErrInternal
+	}
+
+	return nil
+}

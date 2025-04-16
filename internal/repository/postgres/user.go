@@ -136,6 +136,15 @@ func (r *userRepo) FindByID(ctx context.Context, id uuid.UUID) (*model.FullUser,
 	return users[0], nil
 }
 
+func (r *userRepo) FindPassword(ctx context.Context, id uuid.UUID) (*model.User, error) {
+	var user model.User
+	if err := r.db.QueryRow(ctx, "SELECT u.password_hash FROM users u WHERE u.id = $1").Scan(&user.PasswordHash); err != nil {
+		return nil, err
+	}
+	user.ID = id
+	return &user, nil
+}
+
 func (r *userRepo) FindByEmail(ctx context.Context, email string) (*model.User, error) {
 	var user model.User
 	if err := r.db.QueryRow(ctx, `
@@ -321,6 +330,11 @@ func (r *userRepo) UpdateByID(ctx context.Context, id uuid.UUID, updates map[str
 	args = append(args, id)
 
 	_, err := r.db.Exec(ctx, query, args...)
+	return err
+}
+
+func (r *userRepo) UpdatePasswordHash(ctx context.Context, id uuid.UUID, newPasswordHash string) error {
+	_, err := r.db.Exec(ctx, "UPDATE users SET password_hash = $1 WHERE id = $2", newPasswordHash, id)
 	return err
 }
 
