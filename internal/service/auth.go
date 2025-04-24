@@ -382,3 +382,33 @@ func (s *authService) ChangePassword(ctx context.Context, userID uuid.UUID, oldP
 
 	return nil
 }
+
+func (s *authService) RequestForgotPasswordCode(ctx context.Context, email string) error {
+	user, err := s.repo.Postgres.User.FindByEmail(ctx, email)
+	if err != nil {
+		s.logger.Sugar().Errorf("failed to get user by email(%s) from postgres: %s", email, err.Error())
+		return ErrInternal
+	}
+
+	code := newRandomCode(1_000_000_000, 9_999_999_999)
+
+	if err := s.repo.Redis.SetJSON(ctx, redisrepo.UserForgotPasswordCodeKey(code), user, time.Minute * 5); err != nil {
+		s.logger.Sugar().Errorf("failed to set forgot-password code for user(%s) in redis: %s", user.ID.String(), err.Error())
+		return ErrInternal
+	}
+
+	bodyJSON, err := json.Marshal(dto.RabbitMQNotificateUserCodeDto{
+		Email: user.Email,
+		Code: code,
+	})
+	if err != nil {
+		s.logger.Sugar().Errorf("failed to marshal body to send to user(%s) to json: %s", user.Email, err.Error())
+		return ErrInternal
+	}
+	if err := s.rabbitmq.PublishToQueue(rabbitmq.USER_FORGOT_PASSWORD_QUEUE, bodyJSON); err != nil {
+		s.logger.Sugar().Errorf("failed to publish message to queue(%s) for user(%s): %s", rabbitmq.USER_FORGOT_PASSWORD_QUEUE, user.ID.String(), err.Error())
+		return ErrInternal
+	}
+	
+	return nil
+}
