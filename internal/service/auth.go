@@ -412,3 +412,28 @@ func (s *authService) RequestForgotPasswordCode(ctx context.Context, email strin
 	
 	return nil
 }
+
+func (s *authService) ChangeForgottenPassword(ctx context.Context, code int, req dto.ChangeForgottenPasswordRequest) error {
+	user, err := redisrepo.Get[model.User](s.repo.Redis.Default, ctx, redisrepo.UserForgotPasswordCodeKey(code))
+	if err != nil {
+		if err == redis.Nil {
+			return ErrInvalidForgotPasswordCode
+		}
+
+		s.logger.Sugar().Errorf("failed to get user by forgot-password code from redis: %s", err.Error())
+		return ErrInternal
+	}
+
+	newPasswordHash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), 11)
+	if err != nil {
+		s.logger.Sugar().Errorf("failed to generate new password hash for user(%s): %s", user.ID.String(), err.Error())
+		return ErrInternal
+	}
+
+	if err := s.repo.Postgres.User.UpdatePasswordHash(ctx, user.ID, string(newPasswordHash)); err != nil {
+		s.logger.Sugar().Errorf("failed to update user(%s)'s password hash: %s", user.ID.String(), err.Error())
+		return ErrInternal
+	}
+
+	return nil
+}
