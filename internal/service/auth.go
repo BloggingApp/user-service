@@ -42,7 +42,7 @@ func newRandomCode(min int, max int) int {
 	return rand.Intn(max - min) + min
 }
 
-func (s *authService) SendRegistrationCode(ctx context.Context, createUserDto dto.CreateUser) error {
+func (s *authService) SendRegistrationCode(ctx context.Context, createUserDto dto.CreateUserReq) error {
 	createUserDto.Email = strings.TrimSpace(createUserDto.Email)
 	createUserDto.Username = strings.TrimSpace(strings.ToLower(createUserDto.Username))
 
@@ -82,7 +82,7 @@ func (s *authService) SendRegistrationCode(ctx context.Context, createUserDto dt
 	maxAttempts := 10
 	for i := 1; i <= maxAttempts; i++ {
 		code = newRandomCode(MIN_REGISTRATION_CODE, MAX_REGISTRATION_CODE)
-		_, err := redisrepo.Get[dto.CreateUser](s.repo.Redis.Default, ctx, redisrepo.TempRegistrationCodeKey(code))
+		_, err := redisrepo.Get[dto.CreateUserReq](s.repo.Redis.Default, ctx, redisrepo.TempRegistrationCodeKey(code))
 		if err == redis.Nil {
 			break
 		}
@@ -128,7 +128,7 @@ func (s *authService) SendRegistrationCode(ctx context.Context, createUserDto dt
 func (s *authService) VerifyRegistrationCodeAndCreateUser(ctx context.Context, code int) (*dto.GetUserDto, *jwtmanager.JWTPair, error) {
 	// Verifying if code exists
 	redisKey := redisrepo.TempRegistrationCodeKey(code)
-	userData, err := redisrepo.Get[dto.CreateUser](s.repo.Redis.Default, ctx, redisKey)
+	userData, err := redisrepo.Get[dto.CreateUserReq](s.repo.Redis.Default, ctx, redisKey)
 	if err != nil {
 		if err == redis.Nil {
 			return nil, nil, ErrInvalidCode
@@ -209,7 +209,7 @@ func (s *authService) VerifyRegistrationCodeAndCreateUser(ctx context.Context, c
 	return user, jwtPair, nil
 }
 
-func (s *authService) SendSignInCode(ctx context.Context, signInDto dto.SignIn) error {
+func (s *authService) SendSignInCode(ctx context.Context, signInDto dto.SignInReq) error {
 	signInDto.EmailOrUsername = strings.ToLower(signInDto.EmailOrUsername)
 
 	user, err := s.repo.Postgres.User.FindByEmailOrUsername(ctx, signInDto.EmailOrUsername, signInDto.EmailOrUsername)
@@ -358,7 +358,7 @@ func (s *authService) RefreshTokens(ctx context.Context, refreshToken string) (*
 	return jwtPair, nil
 }
 
-func (s *authService) ChangePassword(ctx context.Context, userID uuid.UUID, oldPassword, newPassword string) error {
+func (s *authService) UpdatePassword(ctx context.Context, userID uuid.UUID, oldPassword, newPassword string) error {
 	user, err := s.repo.Postgres.User.FindPassword(ctx, userID)
 	if err != nil {
 		s.logger.Sugar().Errorf("failed to get user(%s) from postgres: %s", userID.String(), err.Error())
@@ -378,6 +378,65 @@ func (s *authService) ChangePassword(ctx context.Context, userID uuid.UUID, oldP
 	if err := s.repo.Postgres.User.UpdatePasswordHash(ctx, userID, string(newPasswordHash)); err != nil {
 		s.logger.Sugar().Errorf("failed to update user(%s)'s password_hash: %s", userID.String(), err.Error())
 		return ErrInternal
+	}
+
+	return nil
+}
+
+func (s *authService) RequestForgotPasswordCode(ctx context.Context, email string) error {
+	user, err := s.repo.Postgres.User.FindByEmail(ctx, email)
+	if err != nil {
+		s.logger.Sugar().Errorf("failed to get user by email(%s) from postgres: %s", email, err.Error())
+		return ErrInternal
+	}
+
+	code := newRandomCode(1_000_000_000, 9_999_999_999)
+
+	if err := s.repo.Redis.SetJSON(ctx, redisrepo.UserForgotPasswordCodeKey(code), user, time.Minute * 5); err != nil {
+		s.logger.Sugar().Errorf("failed to set forgot-password code for user(%s) in redis: %s", user.ID.String(), err.Error())
+		return ErrInternal
+	}
+
+	bodyJSON, err := json.Marshal(dto.RabbitMQNotificateUserCodeDto{
+		Email: user.Email,
+		Code: code,
+	})
+	if err != nil {
+		s.logger.Sugar().Errorf("failed to marshal body to send to user(%s) to json: %s", user.Email, err.Error())
+		return ErrInternal
+	}
+	if err := s.rabbitmq.PublishToQueue(rabbitmq.USER_FORGOT_PASSWORD_QUEUE, bodyJSON); err != nil {
+		s.logger.Sugar().Errorf("failed to publish message to queue(%s) for user(%s): %s", rabbitmq.USER_FORGOT_PASSWORD_QUEUE, user.ID.String(), err.Error())
+		return ErrInternal
+	}
+	
+	return nil
+}
+
+func (s *authService) ChangeForgottenPasswordByCode(ctx context.Context, req dto.ChangeForgottenPasswordReq) error {
+	user, err := redisrepo.Get[model.User](s.repo.Redis.Default, ctx, redisrepo.UserForgotPasswordCodeKey(req.Code))
+	if err != nil {
+		if err == redis.Nil {
+			return ErrInvalidForgotPasswordCode
+		}
+
+		s.logger.Sugar().Errorf("failed to get user by forgot-password code from redis: %s", err.Error())
+		return ErrInternal
+	}
+
+	newPasswordHash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), 11)
+	if err != nil {
+		s.logger.Sugar().Errorf("failed to generate new password hash for user(%s): %s", user.ID.String(), err.Error())
+		return ErrInternal
+	}
+
+	if err := s.repo.Postgres.User.UpdatePasswordHash(ctx, user.ID, string(newPasswordHash)); err != nil {
+		s.logger.Sugar().Errorf("failed to update user(%s)'s password hash: %s", user.ID.String(), err.Error())
+		return ErrInternal
+	}
+
+	if err := s.repo.Redis.Default.Del(ctx, redisrepo.UserForgotPasswordCodeKey(req.Code)).Err(); err != nil {
+		s.logger.Sugar().Errorf("failed to delete user(%s) forgot-password code value from redis: %s", user.ID.String(), err.Error())
 	}
 
 	return nil

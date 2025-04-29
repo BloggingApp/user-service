@@ -13,6 +13,7 @@ const (
 	IS_FOLLOWING_KEY = "%s-is-following:%s" // <followerID>:<userID>
 	PREPARE_USERNAME_KEY = "%s-prepare-for-registration" // <username>
 	PREPARE_USER_EMAIL_KEY = "%s-prepare-for-registration" // <email>
+	USER_FORGOT_PASSWORD_CODE_KEY = "forgot-password-code:%d" // <code>
 )
 
 func UserKey(userID string) string {
@@ -53,4 +54,8 @@ func PrepareUsernameKey(username string) string {
 
 func PrepareUserEmailKey(email string) string {
 	return fmt.Sprintf(PREPARE_USER_EMAIL_KEY, email)
+}
+
+func UserForgotPasswordCodeKey(code int) string {
+	return fmt.Sprintf(USER_FORGOT_PASSWORD_CODE_KEY, code)
 }

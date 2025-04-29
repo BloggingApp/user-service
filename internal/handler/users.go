@@ -176,7 +176,7 @@ func (h *Handler) usersSetAvatar(c *gin.Context) {
 func (h *Handler) usersAddSocialLink(c *gin.Context) {
 	user := h.getUser(c)
 
-	var input dto.AddSocialLinkRequest
+	var input dto.AddSocialLinkReq
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, dto.NewBasicResponse(false, err.Error()))
 		return
@@ -193,7 +193,7 @@ func (h *Handler) usersAddSocialLink(c *gin.Context) {
 func (h *Handler) usersDeleteSocialLink(c *gin.Context) {
 	user := h.getUser(c)
 
-	var input dto.DeleteSocialLinkRequest
+	var input dto.DeleteSocialLinkReq
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, dto.NewBasicResponse(false, err.Error()))
 		return

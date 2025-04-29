@@ -8,7 +8,7 @@ import (
 )
 
 func (h *Handler) authSendRegistrationCode(c *gin.Context) {
-	var input dto.CreateUser
+	var input dto.CreateUserReq
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, dto.NewBasicResponse(false, err.Error()))
 		return
@@ -45,7 +45,7 @@ func (h *Handler) authVerifyRegistrationCodeAndCreateUser(c *gin.Context) {
 }
 
 func (h *Handler) authSendSignInCode(c *gin.Context) {
-	var input dto.SignIn
+	var input dto.SignInReq
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, dto.NewBasicResponse(false, err.Error()))
 		return
@@ -102,16 +102,46 @@ func (h *Handler) authRefresh(c *gin.Context) {
 func (h *Handler) authUpdatePassword(c *gin.Context) {
 	user := h.getUser(c)
 
-	var input dto.UpdatePasswordRequest
+	var input dto.UpdatePasswordReq
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, dto.NewBasicResponse(false, err.Error()))
 		return
 	}
 
-	if err := h.services.Auth.ChangePassword(c.Request.Context(), user.ID, input.OldPassword, input.NewPassword); err != nil {
+	if err := h.services.Auth.UpdatePassword(c.Request.Context(), user.ID, input.OldPassword, input.NewPassword); err != nil {
 		c.JSON(http.StatusInternalServerError, dto.NewBasicResponse(false, err.Error()))
 		return
 	}
 
 	c.JSON(http.StatusOK, nil)
+}
+
+func (h *Handler) authRequestForgotPasswordCode(c *gin.Context) {
+	var input dto.RequestForgotPasswordCodeReq
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, dto.NewBasicResponse(false, err.Error()))
+		return
+	}
+
+	if err := h.services.Auth.RequestForgotPasswordCode(c.Request.Context(), input.Email); err != nil {
+		c.JSON(http.StatusInternalServerError, dto.NewBasicResponse(false, err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.NewBasicResponse(true, ""))
+}
+
+func (h *Handler) authChangeForgottenPasswordByCode(c *gin.Context) {
+	var input dto.ChangeForgottenPasswordReq
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, dto.NewBasicResponse(false, err.Error()))
+		return
+	}
+
+	if err := h.services.Auth.ChangeForgottenPasswordByCode(c.Request.Context(), input); err != nil {
+		c.JSON(http.StatusInternalServerError, dto.NewBasicResponse(false, err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.NewBasicResponse(true, ""))
 }
