@@ -19,6 +19,9 @@
 - **`[PUB]` POST** -> `/sign-in/send-code` - *send confirmation code for log in*
 - **`[PUB]` POST** -> `/sign-in/verify` - *verify **two-factor authentication** code and log in*
 - **`[PUB]` POST** -> `/refresh` - *refresh token pair*
+- **`[AUTH]` PATCH** -> `/update-pw` - *update password*
+- **`[PUB]` POST** -> `/request-fp-code` - *request forgot-password code to change password*
+- **`[PUB]` PATCH** -> `/change-forgotten-pw-by-code` - *change forgotten password by requested code*
 
 ---
 
@@ -34,6 +37,5 @@
     - **GET** -> `/follows` - *get user followed channel*
     - **PATCH** -> `/update` - *update user info*
     - **PATCH** -> `/update/setAvatar` - *set avatar*
-    - **PATCH** -> `/update/updatePassword` - *update password*
     - **PUT** -> `/update/socialLinks` - *add social link*
     - **DELETE** -> `/update/socialLinks` - *delete social link*
