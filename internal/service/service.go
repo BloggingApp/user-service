@@ -14,13 +14,14 @@ import (
 )
 
 type Auth interface {
-	SendRegistrationCode(ctx context.Context, createUserDto dto.CreateUser) error
+	SendRegistrationCode(ctx context.Context, createUserDto dto.CreateUserReq) error
 	VerifyRegistrationCodeAndCreateUser(ctx context.Context, code int) (*dto.GetUserDto, *jwtmanager.JWTPair, error)
-	SendSignInCode(ctx context.Context, signInDto dto.SignIn) error
+	SendSignInCode(ctx context.Context, signInDto dto.SignInReq) error
 	VerifySignInCodeAndSignIn(ctx context.Context, code int) (*dto.GetUserDto, *jwtmanager.JWTPair, error)
 	RefreshTokens(ctx context.Context, refreshToken string) (*jwtmanager.JWTPair, error)
-	ChangePassword(ctx context.Context, userID uuid.UUID, oldPassword, newPassword string) error
+	UpdatePassword(ctx context.Context, userID uuid.UUID, oldPassword, newPassword string) error
 	RequestForgotPasswordCode(ctx context.Context, email string) error
+	ChangeForgottenPasswordByCode(ctx context.Context, req dto.ChangeForgottenPasswordReq) error
 }
 
 type User interface {
