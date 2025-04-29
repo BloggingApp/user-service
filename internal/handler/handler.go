@@ -41,7 +41,7 @@ func (h *Handler) InitRoutes() *gin.Engine {
 			auth.POST("/sign-in/send-code", h.authSendSignInCode)
 			auth.POST("/sign-in/verify", h.authVerifySignInCodeAndSignIn)
 			auth.POST("/refresh", h.authRefresh)
-			auth.PATCH("/update-pw", h.authUpdatePassword)
+			auth.PATCH("/update-pw", h.authMiddleware, h.authUpdatePassword)
 			auth.POST("/request-fp-code", h.authRequestForgotPasswordCode)
 			auth.PATCH("/change-forgotten-pw-by-code", h.authChangeForgottenPasswordByCode)
 		}
