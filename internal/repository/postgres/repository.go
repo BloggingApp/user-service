@@ -13,7 +13,7 @@ type User interface {
 	FindByID(ctx context.Context, id uuid.UUID) (*model.FullUser, error)
 	FindPassword(ctx context.Context, id uuid.UUID) (*model.User, error)
 	FindByEmail(ctx context.Context, email string) (*model.User, error)
-	FindByUsername(ctx context.Context, getterID uuid.UUID, username string) (*model.FullUser, error)
+	FindByUsername(ctx context.Context, getterID *uuid.UUID, username string) (*model.FullUser, error)
 	FindByEmailOrUsername(ctx context.Context, email string, username string) (*model.User, error)
 	UpdateByID(ctx context.Context, id uuid.UUID, updates map[string]interface{}) error
 	UpdatePasswordHash(ctx context.Context, id uuid.UUID, newPasswordHash string) error

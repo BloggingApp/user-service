@@ -170,7 +170,11 @@ func (r *userRepo) FindByEmail(ctx context.Context, email string) (*model.User, 
 	return &user, nil
 }
 
-func (r *userRepo) FindByUsername(ctx context.Context, getterID uuid.UUID, username string) (*model.FullUser, error) {
+func (r *userRepo) FindByUsername(ctx context.Context, getterID *uuid.UUID, username string) (*model.FullUser, error) {
+	if getterID == nil {
+		getterID = &uuid.UUID{}
+	}
+
 	rows, err := r.db.Query(
 		ctx,
 		`
@@ -181,7 +185,7 @@ func (r *userRepo) FindByUsername(ctx context.Context, getterID uuid.UUID, usern
 		LEFT JOIN followers f ON f.user_id = u.id AND f.follower_id = $1
 		WHERE u.username = $2
 		`,
-		getterID,
+		*getterID,
 		username,
 	)
 	if err != nil {

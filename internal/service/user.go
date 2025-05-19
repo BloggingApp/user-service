@@ -101,7 +101,7 @@ func (s *userService) FindByUsername(ctx context.Context, getterID *uuid.UUID, u
 		return nil, ErrInternal
 	}
 
-	user, err := s.repo.Postgres.User.FindByUsername(ctx, *getterID, username)
+	user, err := s.repo.Postgres.User.FindByUsername(ctx, getterID, username)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, pgx.ErrNoRows
