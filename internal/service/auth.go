@@ -22,6 +22,14 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+const (
+	MIN_REGISTRATION_CODE = 100_000
+	MAX_REGISTRATION_CODE = 999_999
+
+	MIN_SIGNIN_CODE = 100_000
+	MAX_SIGNIN_CODE = 999_999
+)
+
 type authService struct {
 	logger *zap.Logger
 	repo *repository.Repository
@@ -38,46 +46,11 @@ func newAuthService(logger *zap.Logger, repo *repository.Repository, rabbitmq *r
 	}
 }
 
-func newRandomCode(min int, max int) int {
+func newRandomCode(min, max int) int {
 	return rand.Intn(max - min) + min
 }
 
-func (s *authService) SendRegistrationCode(ctx context.Context, createUserDto dto.CreateUserReq) error {
-	createUserDto.Email = strings.TrimSpace(createUserDto.Email)
-	createUserDto.Username = strings.TrimSpace(strings.ToLower(createUserDto.Username))
-
-	if strings.ContainsAny(createUserDto.Username, "!@#№$;%^:&?*()-/\\|,<>`~+= ") {
-		return ErrUsernameCannotContainSpecialCharacters
-	}
-
-	// Checking users, who are already in the registration process with these emails and usernames
-	prepareEmailExists, err := s.repo.Redis.Default.Get(ctx, redisrepo.PrepareUserEmailKey(createUserDto.Email)).Bool()
-	if err != nil && err != redis.Nil {
-		s.logger.Sugar().Errorf("failed to get prepare user email(%s) from redis: %s", createUserDto.Email, err.Error())
-		return ErrInternal
-	}
-	if prepareEmailExists {
-		return ErrUserWithEmailAlreadyExists
-	}
-
-	prepareUsernameExists, err := s.repo.Redis.Default.Get(ctx, redisrepo.PrepareUsernameKey(createUserDto.Username)).Bool()
-	if err != nil && err != redis.Nil {
-		s.logger.Sugar().Errorf("failed to get prepare user username(%s) from redis: %s", createUserDto.Username, err.Error())
-		return ErrInternal
-	}
-	if prepareUsernameExists {
-		return ErrUserWithUsernameAlreadyExists
-	}
-
-	user, err := s.repo.Postgres.User.FindByEmailOrUsername(ctx, createUserDto.Email, createUserDto.Username)
-	if err != nil && err != pgx.ErrNoRows {
-		return err
-	}
-	if user != nil {
-		return ErrUserAlreadyExists
-	}
-
-	// Trying to generate unique registration code
+func (s *authService) tryToGenerateRandomCode(ctx context.Context, min, max int) (int, error) {
 	code := 0
 	maxAttempts := 10
 	for i := 1; i <= maxAttempts; i++ {
@@ -88,28 +61,48 @@ func (s *authService) SendRegistrationCode(ctx context.Context, createUserDto dt
 		}
 		if err != nil {
 			s.logger.Sugar().Errorf("failed to get value from redis: %s", err.Error())
-			return ErrInternal
+			return 0, ErrInternal
 		}
 		if i == maxAttempts {
-			return ErrInternalTryAgainLater
+			return 0, ErrInternalTryAgainLater
 		}
 	}
+	return code, nil
+}
 
-	if err := s.repo.Redis.Default.SetJSON(ctx, redisrepo.TempRegistrationCodeKey(code), createUserDto, time.Hour * 3); err != nil {
+func (s *authService) setTempUserDataAndSendRegistrationCode(ctx context.Context, input dto.CreateUserReq) error {
+	code, err := s.tryToGenerateRandomCode(ctx, MIN_REGISTRATION_CODE, MAX_REGISTRATION_CODE)
+	if err != nil {
+		return err
+	}
+
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(input.Password), 10)
+	if err != nil {
+		s.logger.Sugar().Errorf("failed to generate password hash: %s", err.Error())
+		return nil
+	}
+
+	tempUserData := model.TempUserData{
+		Email: input.Email,
+		Username: input.Username,
+		PasswordHash: string(passwordHash),
+	}
+
+	if err := s.repo.Redis.Default.SetJSON(ctx, redisrepo.TempRegistrationCodeKey(code), tempUserData, time.Minute * 5); err != nil {
 		s.logger.Sugar().Errorf("failed to set temporary user in redis: %s", err.Error())
 		return ErrInternal
 	}
-	if err := s.repo.Redis.Default.Set(ctx, redisrepo.PrepareUserEmailKey(createUserDto.Email), true, time.Hour * 3); err != nil {
-		s.logger.Sugar().Errorf("failed to set prepare user email(%s): %s", createUserDto.Email, err.Error())
+	if err := s.repo.Redis.Default.Set(ctx, redisrepo.PrepareUserEmailKey(input.Email), true, time.Hour); err != nil {
+		s.logger.Sugar().Errorf("failed to set prepare user email(%s) in redis: %s", input.Email, err.Error())
 		return ErrInternal
 	}
-	if err := s.repo.Redis.Default.Set(ctx, redisrepo.PrepareUsernameKey(createUserDto.Username), true, time.Hour * 3); err != nil {
-		s.logger.Sugar().Errorf("failed to set prepare user username(%s): %s", createUserDto.Username, err.Error())
+	if err := s.repo.Redis.Default.Set(ctx, redisrepo.PrepareUsernameKey(input.Username), true, time.Hour); err != nil {
+		s.logger.Sugar().Errorf("failed to set prepare user username(%s) in redis: %s", input.Username, err.Error())
 		return ErrInternal
 	}
 
 	queueData, err := json.Marshal(&dto.RabbitMQNotificateUserCodeDto{
-		Email: createUserDto.Email,
+		Email: input.Email,
 		Code: code,
 	})
 	if err != nil {
@@ -125,10 +118,52 @@ func (s *authService) SendRegistrationCode(ctx context.Context, createUserDto dt
 	return nil
 }
 
+func (s *authService) SendRegistrationCode(ctx context.Context, input dto.CreateUserReq) error {
+	input.Email = strings.TrimSpace(input.Email)
+	input.Username = strings.TrimSpace(strings.ToLower(input.Username))
+
+	if strings.ContainsAny(input.Username, " !@#№$;%^:&?*()-/\\|,<>`~+=") {
+		return ErrUsernameCannotContainSpecialCharacters
+	}
+
+	// Checking for user, who is already in the registration process with this email and username
+	prepareEmailExists, err := s.repo.Redis.Default.Get(ctx, redisrepo.PrepareUserEmailKey(input.Email)).Bool()
+	if err != nil && err != redis.Nil {
+		s.logger.Sugar().Errorf("failed to get prepare user email(%s) from redis: %s", input.Email, err.Error())
+		return ErrInternal
+	}
+	if prepareEmailExists {
+		return ErrUserWithEmailAlreadyExists
+	}
+
+	prepareUsernameExists, err := s.repo.Redis.Default.Get(ctx, redisrepo.PrepareUsernameKey(input.Username)).Bool()
+	if err != nil && err != redis.Nil {
+		s.logger.Sugar().Errorf("failed to get prepare user username(%s) from redis: %s", input.Username, err.Error())
+		return ErrInternal
+	}
+	if prepareUsernameExists {
+		return ErrUserWithUsernameAlreadyExists
+	}
+
+	user, err := s.repo.Postgres.User.FindByEmailOrUsername(ctx, input.Email, input.Username)
+	if err != nil && err != pgx.ErrNoRows {
+		return err
+	}
+	if user != nil {
+		return ErrUserAlreadyExists
+	}
+
+	return s.setTempUserDataAndSendRegistrationCode(ctx, input)
+}
+
+func (s *authService) ResendRegistrationCode(ctx context.Context, input dto.CreateUserReq) error {
+	return s.setTempUserDataAndSendRegistrationCode(ctx, input)
+}
+
 func (s *authService) VerifyRegistrationCodeAndCreateUser(ctx context.Context, code int) (*dto.GetUserDto, *jwtmanager.JWTPair, error) {
 	// Verifying if code exists
 	redisKey := redisrepo.TempRegistrationCodeKey(code)
-	userData, err := redisrepo.Get[dto.CreateUserReq](s.repo.Redis.Default, ctx, redisKey)
+	userData, err := redisrepo.Get[model.TempUserData](s.repo.Redis.Default, ctx, redisKey)
 	if err != nil {
 		if err == redis.Nil {
 			return nil, nil, ErrInvalidCode
@@ -143,16 +178,10 @@ func (s *authService) VerifyRegistrationCodeAndCreateUser(ctx context.Context, c
 		return nil, nil, ErrInternal
 	}
 
-	passwordHash, err := bcrypt.GenerateFromPassword([]byte(userData.Password), 10)
-	if err != nil {
-		s.logger.Sugar().Errorf("failed to generate password hash: %s", err.Error())
-		return nil, nil, ErrInternal
-	}
-
 	newUser := model.User{
 		Email: userData.Email,
 		Username: userData.Username,
-		PasswordHash: string(passwordHash),
+		PasswordHash: userData.PasswordHash,
 	}
 	createdUser, err := s.repo.Postgres.User.Create(ctx, newUser)
 	if err != nil {
@@ -190,6 +219,7 @@ func (s *authService) VerifyRegistrationCodeAndCreateUser(ctx context.Context, c
 
 	user, err := s.userService.FindByUsername(ctx, nil, createdUser.Username)
 	if err != nil {
+		s.logger.Sugar().Errorf("failed to retrieve user by username(%s) from postgres: %s", createdUser.Username, err.Error())
 		return nil, nil, ErrInternal
 	}
 
@@ -226,22 +256,9 @@ func (s *authService) SendSignInCode(ctx context.Context, signInDto dto.SignInRe
 		return ErrInvalidCredentials
 	}
 
-	// Trying to generate unique sign-in code
-	code := 0
-	maxAttempts := 10
-	for i := 1; i <= maxAttempts; i++ {
-		code = newRandomCode(MIN_SIGNIN_CODE, MAX_SIGNIN_CODE)
-		_, err := redisrepo.Get[model.User](s.repo.Redis.Default, ctx, redisrepo.TempSignInCodeKey(code))
-		if err == redis.Nil {
-			break
-		}
-		if err != nil {
-			s.logger.Sugar().Errorf("failed to get value from redis: %s", err.Error())
-			return ErrInternal
-		}
-		if i == maxAttempts {
-			return ErrInternalTryAgainLater
-		}
+	code, err := s.tryToGenerateRandomCode(ctx, MIN_SIGNIN_CODE, MAX_SIGNIN_CODE)
+	if err != nil {
+		return err
 	}
 
 	if err := s.repo.Redis.Default.SetJSON(ctx, redisrepo.TempSignInCodeKey(code), user, time.Hour * 3); err != nil {
