@@ -15,8 +15,9 @@
 
 `/auth`:
 - **`[PUB]` POST** -> `/sign-up/send-code` - *send registration code*
+- **`[PUB]` POST** -> `/sign-up/resend-code` - *resend registration code*
 - **`[PUB]` POST** -> `/sign-up/verify` - *verify registration code and register*
-- **`[PUB]` POST** -> `/sign-in/send-code` - *send confirmation code for log in*
+- **`[PUB]` POST** -> `/sign-in/send-code` - *send confirmation code for sign-in*
 - **`[PUB]` POST** -> `/sign-in/verify` - *verify **two-factor authentication** code and log in*
 - **`[PUB]` POST** -> `/refresh` - *refresh token pair*
 - **`[AUTH]` PATCH** -> `/update-pw` - *update password*
