@@ -14,7 +14,8 @@ import (
 )
 
 type Auth interface {
-	SendRegistrationCode(ctx context.Context, createUserDto dto.CreateUserReq) error
+	SendRegistrationCode(ctx context.Context, input dto.CreateUserReq) error
+	ResendRegistrationCode(ctx context.Context, input dto.CreateUserReq) error
 	VerifyRegistrationCodeAndCreateUser(ctx context.Context, code int) (*dto.GetUserDto, *jwtmanager.JWTPair, error)
 	SendSignInCode(ctx context.Context, signInDto dto.SignInReq) error
 	VerifySignInCodeAndSignIn(ctx context.Context, code int) (*dto.GetUserDto, *jwtmanager.JWTPair, error)

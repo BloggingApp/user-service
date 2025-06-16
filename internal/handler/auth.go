@@ -22,6 +22,21 @@ func (h *Handler) authSendRegistrationCode(c *gin.Context) {
 	c.JSON(http.StatusOK, dto.NewBasicResponse(true, ""))
 }
 
+func (h *Handler) authResendRegistrationCode(c *gin.Context) {
+	var input dto.CreateUserReq
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, dto.NewBasicResponse(false, err.Error()))
+		return
+	}
+
+	if err := h.services.Auth.ResendRegistrationCode(c.Request.Context(), input); err != nil {
+		c.JSON(http.StatusInternalServerError, dto.NewBasicResponse(false, err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.NewBasicResponse(true, ""))
+}
+
 type authVerifyRegistrationCodeInput struct {
 	Code int `json:"code" binding:"required"`
 }
