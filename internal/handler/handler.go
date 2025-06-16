@@ -37,6 +37,7 @@ func (h *Handler) InitRoutes() *gin.Engine {
 		auth := v1.Group("/auth")
 		{
 			auth.POST("/sign-up/send-code", h.authSendRegistrationCode)
+			auth.POST("/sign-up/resend-code", h.authResendRegistrationCode)
 			auth.POST("/sign-up/verify", h.authVerifyRegistrationCodeAndCreateUser)
 			auth.POST("/sign-in/send-code", h.authSendSignInCode)
 			auth.POST("/sign-in/verify", h.authVerifySignInCodeAndSignIn)
