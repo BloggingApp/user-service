@@ -14,11 +14,12 @@
 - **`[PUB]`** - ***doesn't** require auth*
 
 `/auth`:
-- **`[PUB]` POST** -> `/sign-up/send-code` - *send registration code*
-- **`[PUB]` POST** -> `/sign-up/resend-code` - *resend registration code*
-- **`[PUB]` POST** -> `/sign-up/verify` - *verify registration code and register*
-- **`[PUB]` POST** -> `/sign-in/send-code` - *send confirmation code for sign-in*
-- **`[PUB]` POST** -> `/sign-in/verify` - *verify **two-factor authentication** code and log in*
+- **`[PUB]` POST** -> `/sign-up/send-code` - *send confirmation code*
+- **`[PUB]` POST** -> `/sign-up/resend-code` - *resend confirmation code*
+- **`[PUB]` POST** -> `/sign-up/verify` - *verify confirmation code and register*
+- **`[PUB]` POST** -> `/sign-in/send-code` - *send 2fa code*
+- **`[PUB]` POST** -> `/sign-in/resend-code` - *resend 2fa code*
+- **`[PUB]` POST** -> `/sign-in/verify` - *verify 2fa code and log in*
 - **`[PUB]` POST** -> `/refresh` - *refresh token pair*
 - **`[AUTH]` PATCH** -> `/update-pw` - *update password*
 - **`[PUB]` POST** -> `/request-fp-code` - *request forgot-password code to change password*
