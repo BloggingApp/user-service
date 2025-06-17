@@ -40,6 +40,7 @@ func (h *Handler) InitRoutes() *gin.Engine {
 			auth.POST("/sign-up/resend-code", h.authResendRegistrationCode)
 			auth.POST("/sign-up/verify", h.authVerifyRegistrationCodeAndCreateUser)
 			auth.POST("/sign-in/send-code", h.authSendSignInCode)
+			auth.POST("/sign-in/resend-code", h.authSendSignInCode)
 			auth.POST("/sign-in/verify", h.authVerifySignInCodeAndSignIn)
 			auth.POST("/refresh", h.authRefresh)
 			auth.PATCH("/update-pw", h.authMiddleware, h.authUpdatePassword)
